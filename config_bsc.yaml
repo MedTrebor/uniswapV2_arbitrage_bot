@@ -1,0 +1,167 @@
+download_pools: False
+
+multiprocessing:
+  workers: 15
+  min_chunk: 10
+
+max_retries: 5
+
+transaction:
+  max_delay: 1.2
+  gas_limit_multiplier: 2.333333
+  min_profit: 0
+  gas_reductions: 1
+  reduction_denominator: 1.1
+  final_tx: 1.45
+
+price:
+  url: !ENV https://api.bscscan.com/api?module=gastracker&action=gasoracle&apikey=${BSCSCAN_AUTH}
+  correction: 1.1
+
+  # gas price multipliers
+  min_gas_multiplier: 1.3
+  optimal_gas_multiplier: 0.99
+  max_gas_multiplier: 10
+
+poll:
+  main: 2
+  nodes: 0.042
+  pools: 21600
+  price: 1
+  burners: 900
+
+restart:
+  wait: 10
+  multiplier: 2
+  max_wait: 300
+  cooldown: 600
+
+burner:
+  enabled: True
+  factory: "0x681F448aD71699DB9ed2fd898C74D20213300285"
+  min: 50
+  gas_price: 2000000000
+
+logging:
+  stream:
+    level: INFO
+    format: "[{asctime}][{levelname:^17s}][{processName:^19}][{threadName:^18s}][{name:^32s}]: {message}"
+    date_format: "%d/%m/%Y %H:%M:%S"
+  file:
+    level: INFO
+    format: "[{asctime}][{levelname:^17s}][{processName:^19}][{threadName:^18s}][{name:^32s}]: {message}"
+    date_format: "%d/%m/%Y %H:%M:%S"
+    filename: logs
+    rotation:
+      when: midnight
+      interval: 1
+      backup_count: 7
+  traceback_width: 139
+  show_locals: True
+
+blockchain:
+  name: "bsc"
+  account: !ENV ${BSC_PK1}
+  endpoints:
+    # - https://bsc-dataseed.binance.org/
+    # - https://bsc-dataseed1.binance.org/
+    # - https://bsc-dataseed2.binance.org/
+    # - https://bsc-dataseed3.binance.org/
+    # - https://bsc-dataseed4.binance.org/
+    # - https://bsc-dataseed1.defibit.io/
+    # - https://bsc-dataseed2.defibit.io/
+    # - https://bsc-dataseed3.defibit.io/
+    # - https://bsc-dataseed4.defibit.io/
+    # - https://bsc-dataseed1.ninicoin.io/
+    # - https://bsc-dataseed2.ninicoin.io/
+    # - https://bsc-dataseed3.ninicoin.io/
+    # - https://bsc-dataseed4.ninicoin.io/
+    - !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
+    # - https://data-seed-prebsc-1-s1.binance.org:8545
+  chain_id: 56
+  # chain_id: 97
+  geth_poa_middleware: True
+
+event_log:
+  max_blocks: 1200
+  block_time: 3
+
+multicall:
+  address: "0xfF6FD90A470Aaa0c1B8A54681746b07AcdFedc9B"
+  size: 2000
+
+filter:
+  min_liquidity: 500
+  exclude: 1000
+
+paths:
+  length: 3
+  tokens:
+    - "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" # WBNB
+    - "0x0efb5FD2402A0967B92551d6AF54De148504A115" # WBNB FST
+    - "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56" # BUSD
+    - "0x55d398326f99059fF775485246999027B3197955" # USDT
+    # - "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" # USDC
+    # - "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3" # DAI
+    # - "0x14016E85a25aeb13065688cAFB43044C2ef86784" # TUSD
+
+weths:
+  - "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+  - "0x0efb5FD2402A0967B92551d6AF54De148504A115"
+
+min_gas_limits:
+  "2": 170000
+  "3": 210000
+  # "2": 90000
+  # "3": 120000
+  "4": 240000
+
+router: "0xDbf6E0B91229295479a12d6f3Bc1a959C99368e6"
+
+batch_checker:
+  address: "0xc55E0726a2d40ba129879e8bc1D18d0d42fD3c4f"
+  size: 200
+  # address: "0xF6e16Cba5fc822c4364fF1c8D1d048E405f18BeE" old v3
+
+factories:
+  "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73": 9970 # pancake
+  "0x858E3312ed3A876947EA49d572A7C42DE08af7EE": pool # biswap dynamic fee 0.2%
+  "0x86407bEa2078ea5f5EB5A52B2caA963bC1F889Da": 9980 # apeswap fee 0.2%
+  "0x3CD1C46068dAEa5Ebb0d3f55F6915B10648062B8": factory # MDEX dynamic fee 0.3%
+  "0xd6715A8be3944ec72738F0BFDC739d48C3c29349": pool # nomiswap dynamic fee 0.1%
+  "0x0841BD0B734E4F5853f0dD8d7Ea041c241fb0Da6": 9980 # baby fee 0.2%
+  "0x9A272d734c5a0d7d84E0a892e891a553e8066dce": 9970 # fstswap
+  "0xc35DADB65012eC5796536bD9864eD8773aBc74C4": 9970 # sushi
+  "0x49CDaFf8F36d3021Ff6bC4F480682752C80e0F28": factory # zooswap dynamic
+  "0xf0bc2E21a76513aa7CC2730C7A1D6deE0790751f": 9980 # knight fee 0.2%
+  "0xB42E3FE71b7E0673335b3331B3e1053BD9822570": 9980 # waultswap fee 0.2%
+  "0xE52cCf7B6cE4817449F2E6fA7efD7B567803E4b4": 9970 # orion
+  "0x553990F2CBA90272390f62C5BDb1681fFc899675": 9970 # bsc
+  "0x98957ab49b8bc9f7ddbCfD8BcC83728085ecb238": 9990 # radioshack 0.1%
+  "0x72d892a36EC529cB2b81430E8d73364aB78277f0": 9999 # novation 0.01%
+  "0x03879E2a3944FD601e7638DfCBC9253fb793b599": 9975 # baryon 0.25%
+  "0x7810D4B7bC4F7faee9deec3242238a39c4f1197d": 9970 # swipe
+  "0x0eb58E5c8aA63314ff5547289185cC4583DfCBD5": 9970 # jet
+  "0x80f112CD8Ac529d6993090A0c9a04E01d495BfBf": 9975 # swych 0.25%
+  "0x31aFfd875e9f68cd6Cd12Cee8943566c9A4bBA13": 9970 # elk
+  "0xC2D8d27F3196D9989aBf366230a47384010440c0": 9980 # coinswap 0.2%
+  "0xaC653cE27E04C6ac565FD87F18128aD33ca03Ba2": 9970 # Thug
+  "0x670f55c6284c629c23baE99F585e3f17E8b9FC31": 9980 # panther 0.2%
+  "0xa053582601214FEb3778031a002135cbBB7DBa18": 9975 # planet 0.25%
+  "0xFf9A4E72405Df3ca3D909523229677e6B2b8dC71": 9970 # pandora
+  "0xdd538E4Fd1b69B7863E1F741213276A6Cf1EfB3B": 9980 # cheese 0.2%
+  "0x3657952d7bA5A0A4799809b5B6fdfF9ec5B46293": 9970 # warden
+  # "0x79C342FddBBF376cA6B4EFAc7aaA457D6063F8Cb": pool # winery dynamic numerator 10_000
+  "0x43eBb0cb9bD53A3Ed928Dd662095aCE1cef92D19": 9980 # definix 0.2%
+  "0x3e708FdbE3ADA63fc94F8F61811196f1302137AD": 9980 # cafe 0.2%
+  "0x97bCD9BB482144291D77ee53bFa99317A82066E8": 9970 # GIBX
+  "0x851175B556FD3fDa7a814Df7adf678ffF242d21f": 9975 # space dex 0.25%
+  "0xaF042b1B77240063bc713B9357c39ABedec1b691": 9980 # luchow 0.2%
+  "0xC7a506ab3ac668EAb6bF9eCf971433D6CFeF05D9": 9980 # alita 0.2%
+  "0x73D9F93D53505cB8C4c7f952ae42450d9E859D10": 9970 # DSG
+
+balancer:
+  target: 0
+  max_txs: 10
+
+blacklist: 100

@@ -1,0 +1,44 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "router",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "arbCall",
+        "type": "bytes"
+      }
+    ],
+    "name": "_checkArb",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "router",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "arbData",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "checkArbs",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "results",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
