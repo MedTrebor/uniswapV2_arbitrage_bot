@@ -23,6 +23,8 @@ def search_for_arbitrages(
     pools: Pools,
     paths: list[tuple[str, ...]],
     min_gas_price: Decimal,
+    low_gas_price: Decimal,
+    mid_gas_price: Decimal,
     max_gas_price: Decimal,
     eth_price: Decimal
     # process_pool: ProcessPool,
@@ -33,6 +35,8 @@ def search_for_arbitrages(
         pools (Pools): All pools.
         paths (list[tuple[str, ...]]): List of unique paths.
         min_gas_price (Decimal): Minimum gas price.
+        low_gas_price (Decimal): Low gas price.
+        mid_gas_price (Decimal): Medium gas price.
         max_gas_price (Decimal): Maximum gas price.
         process_pool (ProcessPool): Process pool.
 
@@ -61,7 +65,13 @@ def search_for_arbitrages(
     eth_price = eth_price * Decimal(CONFIG["price"]["correction"])
 
     potential_arbs = calculate_profitability(
-        pools, paths, min_gas_price, max_gas_price, eth_price
+        pools,
+        paths,
+        min_gas_price,
+        low_gas_price,
+        mid_gas_price,
+        max_gas_price,
+        eth_price,
     )
 
     #########################
@@ -137,6 +147,8 @@ def calculate_profitability(
     pools: Pools,
     paths: list[tuple[str, ...]],
     min_gas_price: Decimal,
+    low_gas_price: Decimal,
+    mid_gas_price: Decimal,
     max_gas_price: Decimal,
     eth_price: Decimal,
 ) -> list[Arbitrage]:
@@ -147,6 +159,8 @@ def calculate_profitability(
         pools (Pools): Pools.
         paths (list[tuple[str, ...]]): Paths.
         min_gas_price (Decimal): Minimum gas price.
+        low_gas_price (Decimal): Low gas price.
+        mid_gas_price (Decimal): Medium gas price.
         max_gas_price (Decimal): Maximum gas price.
         eth_price (Decimal): Price of ETH.
 
@@ -156,7 +170,9 @@ def calculate_profitability(
     Returns:
         list[Arbitrage]: Potentially profitable arbitrages.
     """
-    optimal_multiplier = Decimal(CONFIG["price"]["optimal_gas_multiplier"])
+    low_multiplier = Decimal(CONFIG["price"]["low"]["ratio"])
+    mid_multiplier = Decimal(CONFIG["price"]["mid"]["ratio"])
+    high_multipler = Decimal(CONFIG["price"]["high"]["ratio"])
     min_profit = Decimal(CONFIG["transaction"]["min_profit"])
     burn_enabled = CONFIG["burner"]["enabled"]
     burn_cost = Decimal(36_930) * Decimal(CONFIG["burner"]["gas_price"])
@@ -181,12 +197,26 @@ def calculate_profitability(
             try:
                 amount_out = get_path_amount_out(amount_in, pools, path)
             except BigNumberError:
-                amount_in //= 2
+                amount_in //= Decimal(1.2)
                 amount_out = get_path_amount_out(amount_in, pools, path)
 
             bruto_profit = amount_out - amount_in
             if bruto_profit <= 0:
                 continue
+
+            ########
+            # TEST #
+            opt_amount_in, opt_profit, i = tweak_amount_in(
+                amount_in, bruto_profit, path, pools
+            )
+
+            if i:
+                # profit_diff = (opt_profit / bruto_profit) - Decimal(1)
+                # log.info(f"{i / 100:.2%} amount in. Profit: {profit_diff:.2%}")
+                amount_in = opt_amount_in
+                bruto_profit = opt_profit
+
+            ########
 
             # getting gas limit and wei price
             gas_limit: Decimal = MIN_GAS_LIMITS[len(path)]
@@ -205,10 +235,18 @@ def calculate_profitability(
 
             # getting optimal price and checking if it's above minimum gas price
             optimal_gas_price = calc_optimal_gas_price(
-                bruto_profit - burners_cost, gas_usage, wei_price, optimal_multiplier
+                bruto_profit - burners_cost, gas_usage, wei_price, low_multiplier
             )
             if optimal_gas_price < min_gas_price:
                 continue
+            if optimal_gas_price > low_gas_price:
+                optimal_gas_price = calc_optimal_gas_price(
+                    bruto_profit - burners_cost, gas_usage, wei_price, mid_multiplier
+                )
+            if optimal_gas_price > mid_gas_price:
+                optimal_gas_price = calc_optimal_gas_price(
+                    bruto_profit - burners_cost, gas_usage, wei_price, high_multipler
+                )
 
             # getting gas price
             gas_price = min(optimal_gas_price, max_gas_price)
@@ -332,6 +370,26 @@ def get_path_amount_out(amount_in: Decimal, pools: Pools, path: list[str]) -> De
         amount_in = amount_out
 
     return amount_out
+
+
+def tweak_amount_in(
+    amount_in0: Decimal, profit0: Decimal, path: tuple[str, ...], pools: Pools
+) -> tuple[Decimal, Decimal, int]:
+    best_amount_in = amount_in0
+    best_profit = profit0
+    best_i = 0
+
+    for i in range(1, 11):
+        amount_in = round(amount_in0 * Decimal(i / 100 + 1), 0)
+        amount_out = get_path_amount_out(amount_in, pools, path)
+        profit = amount_out - amount_in
+
+        if profit > best_profit:
+            best_amount_in = amount_in
+            best_profit = profit
+            best_i = i
+
+    return best_amount_in, best_profit, best_i
 
 
 def calc_gas_cost(gas_price: Decimal, gas_limit: Decimal, price: Decimal) -> Decimal:

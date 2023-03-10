@@ -1,3 +1,4 @@
+from time import sleep
 from eth_typing import ChecksumAddress
 from eth_utils.address import to_checksum_address
 from eth_utils.crypto import keccak
@@ -14,7 +15,7 @@ from .ww3 import Web3
 log = Logger(__name__)
 
 BURNER_HASH = keccak(
-    hexstr="77700321ced5fa0124fe708abfa912b7a6decc3218585732ff3d5260186008f3"
+    hexstr="77700fed3a25eee9d525a5671b5995fd489fcd3218585732ff3d5260186008f3"
 ).hex()
 
 
@@ -97,11 +98,12 @@ def exe_tx(acc: ChecksumAddress, calldata: str) -> bool:
         "to": CONFIG["burner"]["factory"],
         "value": 1,
         "nonce": w3.nonce(acc, True),
-        "gas": 10_000_000,
         "gasPrice": CONFIG["burner"]["gas_price"],
         "chainId": w3.chain_id,
         "data": calldata,
     }
+    tx_params["gas"] = int(w3.node.eth.estimate_gas(tx_params) * 1.2)
+
     tx_hash = w3.eth.send_transaction(tx_params)
     log.info(
         "Burner creation transaction sent.\nTransaction hash: [not b blue]"
@@ -114,15 +116,24 @@ def exe_tx(acc: ChecksumAddress, calldata: str) -> bool:
         " [not b blue link=https://bscscan.com/tx/{b}]{b}"
     )
 
+    send_tx = True
     while True:
         try:
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 60, 1)
+            if send_tx:
+                tx_hash = w3.node.eth.send_transaction(tx_params)
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 120, 1)
             break
-        except TimeExhausted:
-            try:
-                tx_hash = w3.eth.send_transaction(tx_params)
-            except ValueError as err:
-                log.warning(err)
+
+        except ValueError as err:
+            log.warning(err)
+            if "nonce" in str(err):
+                send_tx = False
+                sleep(CONFIG["poll"]["main"])
+                continue
+            sleep(120)
+
+        except TimeExhausted as err:
+            log.warning(err)
 
     status = "[green]Successful[/]" if receipt["status"] else "[red]Failed[/]"
     _log = log.info if receipt["status"] else log.error
@@ -132,11 +143,12 @@ def exe_tx(acc: ChecksumAddress, calldata: str) -> bool:
     return success
 
 
-def get_burner_addresses(calldata: str) -> list[str]:
+def get_burner_addresses(calldata: str = "") -> list[str]:
     """Get addresses of burners.
 
     Args:
-        calldata (int): Calldata used for creating burners.
+        calldata (str, optional): Calldata used for creating burners.
+            Defaults empty string.
 
     Returns:
         list[str]: List of hex addresses without `0x` prefix.
@@ -245,13 +257,11 @@ def remove_all_used_burners(
 
     # going throught burners for each account
     for i0, _burners_data in enumerate(all_burners):
-
         # index of burners data to remove
         burners_data_to_remove = []
 
         # going through burners for each salt
         for i1, burners_data in enumerate(_burners_data):
-
             # index of address
             address_to_remove = []
 

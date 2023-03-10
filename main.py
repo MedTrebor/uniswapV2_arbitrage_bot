@@ -20,7 +20,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
     network = CONFIG["blockchain"]["name"]
 
-    blockchain.Web3(new_singleton=True)
+    w3 = blockchain.Web3(new_singleton=True)
     price = PricePollInterval(network, new_singleton=True)
 
     thread_executor = ThreadPoolExecutor(thread_name_prefix="Thread")
@@ -45,8 +45,8 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
     # persistance.save_burners(burners)
 
     # SKIP CREATING BURNERS
-    # blockchain.create_burners(burners, account)
-    # persistance.save_burners(burners)
+    blockchain.create_burners(burners, w3.account)
+    persistance.save_burners(burners)
 
     price.start()
 
@@ -153,7 +153,12 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
             #     checker.check_pools(changed_pools, copied_pools)
 
             # getting gas params for checker and real execution
-            min_gas_price, max_gas_price = price.gas_prices
+            (
+                min_gas_price,
+                low_gas_price,
+                mid_gas_price,
+                max_gas_price,
+            ) = price.gas_prices
             eth_price = prices.eth_price
 
             start = perf_counter()
@@ -161,6 +166,8 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                 process_mngr,
                 changed_pools,
                 min_gas_price,
+                low_gas_price,
+                mid_gas_price,
                 max_gas_price,
                 eth_price,
                 process_pool,
@@ -182,6 +189,8 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                     pre_blacklist_paths,
                     pools,
                     min_gas_price,
+                    low_gas_price,
+                    mid_gas_price,
                     max_gas_price,
                     to_blacklist,
                     block_start,
@@ -223,8 +232,8 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
                         logger.log_executed_arbs(tx_receipts, arb_args, used_burners)
 
-                        # blockchain.create_burners(burners, account)
-                        # persistance.save_burners(burners)
+                        blockchain.create_burners(burners, w3.account)
+                        persistance.save_burners(burners)
 
                 log.debug(
                     "Finished checking potential arbitrages in "

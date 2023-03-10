@@ -40,10 +40,10 @@ def save_last_block(block_number: int) -> None:
     """
     try:
         with open("data/last_block.json", "w") as file:
-            json.dump({"number": block_number}, file)
+            json.dump({"number": block_number - 1}, file)
     except KeyboardInterrupt as error:
         with open("data/last_block.json", "w") as file:
-            json.dump({"number": block_number}, file)
+            json.dump({"number": block_number - 1}, file)
         raise error from None
 
 

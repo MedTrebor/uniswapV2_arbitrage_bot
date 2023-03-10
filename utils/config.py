@@ -50,6 +50,7 @@ def hide_sensitive_info(config: dict) -> None:
     config["blockchain"]["endpoints"] = [
         SecretStr(url) for url in config["blockchain"]["endpoints"]
     ]
+    config["blockchain"]["estimator"] = SecretStr(config["blockchain"]["estimator"])
 
     config["price"]["url"] = SecretStr(config["price"]["url"])
 

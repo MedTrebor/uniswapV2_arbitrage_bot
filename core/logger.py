@@ -129,8 +129,8 @@ def get_tx_log(
     dec_gas_cost = gas_cost / decimals_denominator
 
     # creating string representations
-    str_symbol_in = f"[magenta not b]{SYMBOLS[token_in]}[/]"
-    str_symbol_out = f"[magenta not b]{SYMBOLS[token_out]}[/]"
+    str_symbol_in = f"[default not b]{SYMBOLS[token_in]}[/]"
+    str_symbol_out = f"[default not b]{SYMBOLS[token_out]}[/]"
     str_path = symbolize_path(path)
     str_amount_in = str_num(dec_amount_in)
     str_amount_out = str_num(dec_amount_out)
@@ -202,9 +202,9 @@ def symbolize_path(path: list[ChecksumAddress]) -> str:
     sym_path = []
     for address, symbol in zip(path, symbols, strict=True):
         try:
-            token = f"[magenta not b]{SYMBOLS[address]}[/]"
+            token = f"[magenta b]{SYMBOLS[address]}[/]"
         except KeyError:
-            token = f"[magenta not b]{symbol}[/]"
+            token = f"[magenta b]{symbol}[/]"
 
         sym_path.append(token)
 

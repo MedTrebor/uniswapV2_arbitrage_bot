@@ -8,25 +8,34 @@ max_retries: 5
 
 transaction:
   max_delay: 1.2
-  gas_limit_multiplier: 2.333333
+  gas_limit_multiplier: 2.33
   min_profit: 0
   gas_reductions: 1
   reduction_denominator: 1.1
-  final_tx: 1.45
+  final_tx: 1.5
 
 price:
   url: !ENV https://api.bscscan.com/api?module=gastracker&action=gasoracle&apikey=${BSCSCAN_AUTH}
-  correction: 1.1
+  correction: 1.01
 
   # gas price multipliers
-  min_gas_multiplier: 1.3
-  optimal_gas_multiplier: 0.99
-  max_gas_multiplier: 10
+  low:
+    multiplier: 2
+    ratio: 0.95
+  mid:
+    multiplier: 4
+    ratio: 0.995
+  high:
+    multiplier: 6
+    ratio: 0.995
+  
+  min_gas_multiplier: 1.2
+  max_gas_multiplier: 6
 
 poll:
   main: 2
   nodes: 0.042
-  pools: 21600
+  pools: 7200
   price: 1
   burners: 900
 
@@ -38,9 +47,9 @@ restart:
 
 burner:
   enabled: True
-  factory: "0x681F448aD71699DB9ed2fd898C74D20213300285"
-  min: 50
-  gas_price: 2000000000
+  factory: "0x6Ad9A356EE572ca0e083a35aF9fb0069C33B7fEb"
+  min: 20
+  gas_price: 1000000001
 
 logging:
   stream:
@@ -78,6 +87,7 @@ blockchain:
     # - https://bsc-dataseed4.ninicoin.io/
     - !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
     # - https://data-seed-prebsc-1-s1.binance.org:8545
+  estimator: https://bsc-dataseed2.defibit.io/
   chain_id: 56
   # chain_id: 97
   geth_poa_middleware: True
@@ -116,7 +126,7 @@ min_gas_limits:
   # "3": 120000
   "4": 240000
 
-router: "0xDbf6E0B91229295479a12d6f3Bc1a959C99368e6"
+router: "0x5573751B3E18848691896BBEAb396Fc8ac2A579b"
 
 batch_checker:
   address: "0xc55E0726a2d40ba129879e8bc1D18d0d42fD3c4f"
@@ -159,9 +169,5 @@ factories:
   "0xaF042b1B77240063bc713B9357c39ABedec1b691": 9980 # luchow 0.2%
   "0xC7a506ab3ac668EAb6bF9eCf971433D6CFeF05D9": 9980 # alita 0.2%
   "0x73D9F93D53505cB8C4c7f952ae42450d9E859D10": 9970 # DSG
-
-balancer:
-  target: 0
-  max_txs: 10
 
 blacklist: 100

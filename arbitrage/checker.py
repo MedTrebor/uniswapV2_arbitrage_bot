@@ -30,6 +30,8 @@ def check_arbs(
     pre_blacklist_paths: dict[tuple[str, ...], int],
     pools: Pools,
     min_gas_price: Decimal,
+    low_gas_price: Decimal,
+    mid_gas_price: Decimal,
     max_gas_price: Decimal,
     to_blacklist: set[tuple[str, ...]],
     block_start: float,
@@ -54,7 +56,12 @@ def check_arbs(
 
     if successful:
         profitables = handle_successful(
-            successful, min_gas_price, max_gas_price, pre_blacklist_paths
+            successful,
+            min_gas_price,
+            low_gas_price,
+            mid_gas_price,
+            max_gas_price,
+            pre_blacklist_paths,
         )
         filter_profitables(profitables)
 
@@ -70,10 +77,10 @@ def check_arbs(
         sleep(CONFIG["transaction"]["max_delay"] - block_time_passed)
 
         # checking if gas prices are high enough
-        log_str = measure_time("Downloaded {:,} pending transactions in {}.")
-        pending_txs = w3.get_pending_txs()
-        check_gas_prices(profitables, pending_txs)
-        log.info(log_str(len(pending_txs)))
+        # log_str = measure_time("Downloaded {:,} pending transactions in {}.")
+        # pending_txs = w3.get_pending_txs()
+        # check_gas_prices(profitables, pending_txs)
+        # log.info(log_str(len(pending_txs)))
 
         return profitables
 
@@ -157,13 +164,17 @@ def decode_batch_results(batch_results: bytes) -> list[BatchCheckerResult]:
 def handle_successful(
     successful: list[tuple[Arbitrage, BatchCheckerResult]],
     min_gas_price: Decimal,
+    low_gas_price: Decimal,
+    mid_gas_price: Decimal,
     max_gas_price: Decimal,
     pre_blacklist_paths: dict[tuple[str, ...], int],
 ) -> list[tuple[Arbitrage, Decimal, Decimal]]:
     recalculated_arbs = []
 
+    low_multiplier = Decimal(CONFIG["price"]["low"]["ratio"])
+    mid_multiplier = Decimal(CONFIG["price"]["mid"]["ratio"])
+    high_multipler = Decimal(CONFIG["price"]["high"]["ratio"])
     eth_price = prices.eth_price * Decimal(CONFIG["price"]["correction"])
-    optimal_multiplier = Decimal(CONFIG["price"]["optimal_gas_multiplier"])
     min_profit = Decimal(CONFIG["transaction"]["min_profit"])
     burn_enabled = CONFIG["burner"]["enabled"]
     burn_cost = Decimal(36_930) * Decimal(CONFIG["burner"]["gas_price"])
@@ -197,12 +208,21 @@ def handle_successful(
 
         # getting optimal gas price
         optimal_gas_price = calc_optimal_gas_price(
-            bruto_profit - burners_cost, gas_usage, wei_price, optimal_multiplier
+            bruto_profit - burners_cost, gas_usage, wei_price, low_multiplier
         )
 
         # regulating optimal price not to be higher than configured maximum
         if optimal_gas_price < min_gas_price:
             continue
+
+        if optimal_gas_price > low_gas_price:
+            optimal_gas_price = calc_optimal_gas_price(
+                bruto_profit - burners_cost, gas_usage, wei_price, mid_multiplier
+            )
+        if optimal_gas_price > mid_gas_price:
+            optimal_gas_price = calc_optimal_gas_price(
+                bruto_profit - burners_cost, gas_usage, wei_price, high_multipler
+            )
 
         # SKIPPING TX WHERE GAS PRICE IS ABOVE MAXIMUM
         if optimal_gas_price > max_gas_price:
@@ -309,11 +329,11 @@ def check_gas_prices(
         arb = profitable[0]
 
         for tx in pending_txs:
-            if tx["gasPrice"] > arb.gas_price:
+            if tx["gasPrice"] < arb.gas_price:
                 # skip lower gas price pending transactions
                 break
 
-            if has_address(tx["input"], arb.path):
+            if has_addresses(tx["input"], arb.path):
                 # remove if higher gas transaction has path address
                 remove_idxs.append(i)
 
@@ -326,9 +346,13 @@ def check_gas_prices(
         del profitables[rm_idx - i]
 
 
-def has_address(data: str, addresses: Sequence[ChecksumAddress]):
+def has_addresses(data: str, addresses: Sequence[ChecksumAddress]):
+    has_address = False
+
     for address in addresses:
         if address[2:].lower() in data:
-            return True
+            if has_address:
+                return True
+            has_address = True
 
     return False

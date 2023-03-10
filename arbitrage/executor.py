@@ -9,7 +9,7 @@ from web3.types import TxReceipt
 
 from blockchain import Web3
 from network.prices import wei_usd_price
-from utils import CONFIG, Logger, str_obj
+from utils import CONFIG, Logger, str_obj, measure_time
 from utils._types import ArbArgs, BurnersData, GasParams, Pools, TxParams
 from utils.datastructures import Arbitrage
 
@@ -34,6 +34,10 @@ def exe_arbs(
 
     # executing transactions
     tx_hashes, arb_args = execute_transactions(w3, transactions, block_start)
+
+    # checking if trnasactions were submitted
+    if not tx_hashes:
+        return [], []
 
     # confirming transactions
     conf_s = "confirmations" if len(tx_hashes) > 1 else "confirmation"
@@ -184,6 +188,7 @@ def execute_transactions(
     # creating slot for each transaction in one wave
     tx_hashes = [None] * len(transactions[0])
     all_arb_args = [None] * len(transactions[0])
+    remove_idxs = []
 
     # calculating wave wait durations
     wait_count = len(transactions) - 1
@@ -206,7 +211,6 @@ def execute_transactions(
         try:
             # going through all arb transactions in single wave
             for i, tx_params in enumerate(wave_transactions):
-
                 arb_args = decode_arb_args(tx_params["data"])
                 log.info(
                     f"{datetime.now()}\n"
@@ -214,9 +218,23 @@ def execute_transactions(
                     f"Transaction parameters: {str_obj(tx_params, True)}"
                 )
 
+                # checking gas
+                gas_timer = measure_time("Gas estimetion time: {}")
+                try:
+                    if w3.estimator.eth.estimate_gas(tx_params) < 60_000:
+                        raise ValueError("No profit transaction estimated")
+                except ValueError as error:
+                    log.info(gas_timer())
+                    log.error(error)
+                    w3.nonces[w3.account] -= 1
+                    remove_idxs.append(i)
+                    continue
+
                 # executing transaction on each node
                 for node in w3.nodes:
                     tx_hash = node.eth.send_transaction(tx_params)
+
+                log.info(gas_timer())
 
                 tx_hashes[i] = tx_hash
                 all_arb_args[i] = arb_args
@@ -225,5 +243,10 @@ def execute_transactions(
             # transaction is underpriced or mined
             log.error(error)
             break
+
+    # removing bad transactions
+    for i, rm_idx in enumerate(remove_idxs):
+        del tx_hashes[rm_idx - i]
+        del all_arb_args[rm_idx - i]
 
     return tx_hashes, all_arb_args

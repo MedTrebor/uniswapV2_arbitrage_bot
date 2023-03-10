@@ -33,9 +33,11 @@ class PricePollInterval:
     __slots__ = (
         "_error",
         "_gas_params",
+        "_mid_gas_price",
         "_min_gas_price",
         "_max_gas_price",
         "_lock",
+        "_low_gas_price",
         "_network",
         "_poll_interval",
         "_running",
@@ -109,6 +111,28 @@ class PricePollInterval:
             return self._min_gas_price
 
     @property
+    def low_gas_price(self) -> Decimal:
+        """Low gas price."""
+        with self._lock:
+
+            if self._error:
+                error, self._error = self._error, PricePollNotRunning()
+                raise error from None
+
+            return self._low_gas_price
+
+    @property
+    def mid_gas_price(self) -> Decimal:
+        """Medium gas price."""
+        with self._lock:
+
+            if self._error:
+                error, self._error = self._error, PricePollNotRunning()
+                raise error from None
+
+            return self._mid_gas_price
+
+    @property
     def max_gas_price(self) -> Decimal:
         """Maximum to pay for gas."""
         with self._lock:
@@ -120,15 +144,20 @@ class PricePollInterval:
             return self._max_gas_price
 
     @property
-    def gas_prices(self) -> tuple[Decimal, Decimal]:
-        """Minumum gas price and maximum gas price."""
+    def gas_prices(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        """Minumum, low, medium and maximum gas prices."""
         with self._lock:
 
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
 
-            return self._min_gas_price, self._max_gas_price
+            return (
+                self._min_gas_price,
+                self._low_gas_price,
+                self._mid_gas_price,
+                self._max_gas_price,
+            )
 
     def __get_gas_params(self):
         """Poll ETH and gas price on predefined interval.
@@ -144,6 +173,12 @@ class PricePollInterval:
                     gas_price = Decimal(gas_params["gasPrice"])
                     self._min_gas_price = round(
                         gas_price * Decimal(CONFIG["price"]["min_gas_multiplier"]), 0
+                    )
+                    self._low_gas_price = round(
+                        gas_price * Decimal(CONFIG["price"]["low"]["multiplier"]), 0
+                    )
+                    self._mid_gas_price = round(
+                        gas_price * Decimal(CONFIG["price"]["mid"]["multiplier"]), 0
                     )
                     self._max_gas_price = round(
                         gas_price * Decimal(CONFIG["price"]["max_gas_multiplier"]), 0
@@ -170,6 +205,12 @@ class PricePollInterval:
                         self._min_gas_price = round(
                             gas_price * Decimal(CONFIG["price"]["min_gas_multiplier"]),
                             0,
+                        )
+                        self._low_gas_price = round(
+                            gas_price * Decimal(CONFIG["price"]["low"]["multiplier"]), 0
+                        )
+                        self._mid_gas_price = round(
+                            gas_price * Decimal(CONFIG["price"]["mid"]["multiplier"]), 0
                         )
                         self._max_gas_price = round(
                             gas_price * Decimal(CONFIG["price"]["max_gas_multiplier"]),

@@ -11,7 +11,7 @@ def load_burners() -> list[BurnersData]:
     """
     try:
         with open("data/burners.json") as file:
-            return tuple(json.load(file))
+            return json.load(file)
     except FileNotFoundError:
         return []
 

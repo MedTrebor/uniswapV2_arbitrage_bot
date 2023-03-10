@@ -5,6 +5,7 @@ name = "pypi"
 
 [scripts]
 main = "python main.py"
+status = "python scripts/tx_status.py"
 
 [packages]
 pyaml-env = "*"

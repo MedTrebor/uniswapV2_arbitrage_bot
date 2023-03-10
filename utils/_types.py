@@ -67,6 +67,7 @@ class Blockchain(TypedDict):
     name: str
     account: SecretStr
     endpoints: list[SecretStr]
+    estimator: SecretStr
     chain_id: int
     geth_poa_middleware: bool
 
@@ -92,22 +93,25 @@ class Paths(TypedDict):
     rewrap: list[ChecksumAddress]
 
 
+class GasPriceConf(TypedDict):
+    multiplier: int | float
+    ratio: int | float
+
+
 class Price(TypedDict):
     url: SecretStr
     correction: float
+    low: GasPriceConf
+    mid: GasPriceConf
+    high: GasPriceConf
     min_gas_multiplier: int | float
-    optimal_gas_multiplier: int | float
+    # optimal_gas_multiplier: int | float
     max_gas_multiplier: int | float
 
 
 class BatchChecker(TypedDict):
     address: ChecksumAddress
     size: int
-
-
-class Balancer(TypedDict):
-    target: int | float
-    max_txs: int
 
 
 class BurnerConf(TypedDict):
@@ -148,7 +152,6 @@ class ConfigDict(TypedDict):
     router: ChecksumAddress
     batch_checker: BatchChecker
     factories: dict[ChecksumAddress, int | str]
-    balancer: Balancer
     blacklist: int
 
 

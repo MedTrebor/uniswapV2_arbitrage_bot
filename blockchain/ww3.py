@@ -75,6 +75,7 @@ class Web3:
         "http_sessions",
         "multicalls",
         "nodes",
+        "estimator",
         "nonces",
         # "pending_filters",
         "router",
@@ -84,6 +85,7 @@ class Web3:
     def __init__(self, conf: ConfigDict = CONFIG) -> None:
         self.chain_id = conf["blockchain"]["chain_id"]
         self.nodes = create_web3_instances(conf["blockchain"])
+        self.estimator = _Web3(HTTPProvider(CONFIG["blockchain"]["estimator"].str()))
         self.eth = self.nodes[0].eth
         self.account = create_account(conf["blockchain"]["account"], self.nodes)
         self.__node_idx = node_idx(len(self.nodes), conf["poll"]["nodes"])
@@ -150,7 +152,7 @@ class Web3:
                 confirmed = True
             except TransactionNotFound as error:
                 if perf_counter() - start > 10:
-                    raise error
+                    raise error from None
                 continue
 
         return tx_receipt
