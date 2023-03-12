@@ -90,8 +90,7 @@ class Filter(TypedDict):
 class Paths(TypedDict):
     length: int
     tokens: list[ChecksumAddress]
-    rewrap: list[ChecksumAddress]
-
+    ignored: list[ChecksumAddress]
 
 class GasPriceConf(TypedDict):
     multiplier: int | float
@@ -361,3 +360,17 @@ class TxStats(TypedDict):
     fail: int
     success_rate: int | float
     profit: int | float
+
+
+class TokenBalance(TypedDict):
+    symbol: str
+    balance: int
+    wei_balance: int
+
+
+class BalanceStats(TypedDict):
+    time: str
+    executor: int
+    router: list[TokenBalance]
+    bnb_price: float
+    burners: int

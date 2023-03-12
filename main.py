@@ -10,7 +10,7 @@ import blockchain
 import persistance
 from core import PricePollInterval, loader, logger, processes, whitelist
 from network import prices
-from utils import CONFIG, Logger, TimePassed, WaitPrevious, measure_time
+from utils import CONFIG, BlockTime, Logger, TimePassed, WaitPrevious, measure_time
 
 log = Logger(__name__)
 
@@ -121,6 +121,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
             # getting newest first pool (first time they change)
             while not changed_pools:
+                block_time = BlockTime()
                 start = block_start = perf_counter()
 
                 (
@@ -193,7 +194,6 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                     mid_gas_price,
                     max_gas_price,
                     to_blacklist,
-                    block_start,
                 )
                 check_log = f"Checked {len(raw_arbitrages):,} potential {arbitrage_s} in {timedelta(seconds=perf_counter()-start)}."
                 log.debug(check_log)
@@ -213,7 +213,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                         price.gas_params,
                         pools,
                         burners,
-                        block_start,
+                        block_time,
                     )
 
                     if tx_receipts:

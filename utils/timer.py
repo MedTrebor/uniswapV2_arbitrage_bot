@@ -161,3 +161,23 @@ def measure_time(log_str: str) -> MeasureTime:
         return log_str.format(*args, timedelta(seconds=perf_counter() - start))
 
     return finish
+
+
+class BlockTime:
+    """Created at start of block time.
+    When called shows how much time has passed since block start.
+    """
+
+    __slots__ = ("start_time",)
+
+    def __init__(self) -> None:
+        self.start_time = perf_counter()
+
+    def __call__(self) -> float:
+        """Show how much time has passed since block start.
+        Time passed since `BlockTime` object creation.
+
+        Returns:
+            float: Time passed (seconds).
+        """
+        return perf_counter() - self.start_time

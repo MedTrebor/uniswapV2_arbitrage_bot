@@ -10,14 +10,16 @@ from utils._types import BurnersData, Pools
 log = Logger(__name__)
 
 
-def load_data() -> tuple[
-    Pools,
-    dict[str, int],
-    int,
-    set[tuple[str, ...]],
-    dict[tuple[str, ...], int],
-    list[BurnersData],
-]:
+def load_data() -> (
+    tuple[
+        Pools,
+        dict[str, int],
+        int,
+        set[tuple[str, ...]],
+        dict[tuple[str, ...], int],
+        list[BurnersData],
+    ]
+):
     """Load data from storage or download if storage is empty.
 
     Returns:
@@ -166,6 +168,7 @@ def build_paths(
         CONFIG["paths"]["length"],
         blacklist_paths,
         process_pool,
+        set(CONFIG["paths"]["ignored"]),
     )
 
     return pool_to_paths

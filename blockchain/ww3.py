@@ -322,7 +322,7 @@ class Web3:
             except (KeyError, JSONDecodeError):
                 pass
 
-            sleep(1)
+            sleep(1 + retries)
             retries += 1
 
         raise BlockchainError(f"Could not get transaction trace for {tx_hash}")

@@ -14,6 +14,7 @@ def build_paths(
     length: int,
     blacklist_paths: set[tuple[str, ...]],
     process_pool: ProcessPool,
+    ignore_tokens: set[str],
 ) -> dict[str, tuple[tuple[str, ...], ...]]:
     """Build all possible paths with maximum provided ``length`` that
     start and end with given ``tokens``.
@@ -29,6 +30,7 @@ def build_paths(
         length (int): Maximum length.
         blacklist_paths (set[tuple[str, ...]]): Blacklisted paths.
         process_pool (ProcessPool): Process pool.
+        ignore_tokens (set[str]): Tokens to ignore.
 
     Returns:
         dict[str, tuple[tuple[str, ...], ...]]: Mapping of pool address to
@@ -47,7 +49,14 @@ def build_paths(
         tasks.append(
             process_pool.apply_async(
                 find_paths,
-                [graph, token, final_tokens, compare_length, blacklist_paths],
+                [
+                    graph,
+                    token,
+                    final_tokens,
+                    compare_length,
+                    blacklist_paths,
+                    ignore_tokens,
+                ],
             )
         )
 
@@ -64,6 +73,7 @@ def find_paths(
     final_tokens: set[str],
     compare_length: int,
     blacklist_paths: set[tuple[str, ...]],
+    ignore_tokens: set[str],
 ) -> list[tuple[str, ...]]:
     """Find paths starting at ``start_token`` and ending at ``final_tokens``.
 
@@ -74,6 +84,7 @@ def find_paths(
         compare_length (int): Length of paths where it no longer adds to stack
             and tries to finalize path.
         blacklist_paths (set[tuple[str, ...]]): Blacklisted paths.
+        ignore_tokens (set[str]): Tokens to ignore.
 
     Returns:
         list[tuple[str, ...]]: List of paths.
@@ -125,6 +136,7 @@ def find_paths(
                 current_path,
                 final_paths,
                 blacklist_paths,
+                ignore_tokens,
             )
         )
 
@@ -154,7 +166,6 @@ def _finalize_path(
         blacklist_paths (set[tuple[str, ...]]): Blacklisted paths.
     """
     for final_token in final_tokens:
-
         try:
             final_pools = graph[current_path[-1]][final_token]
         except KeyError:
@@ -185,6 +196,7 @@ def _find_neighbors(
     current_path: list[str],
     final_paths: list[tuple[str, ...]],
     blacklist_paths: set[tuple[str, ...]],
+    ignore_tokens: set[str],
 ) -> list[str]:
     """Add neighbor tokens and pools to ``stack`` or if it's
     finished to ``final_paths``.
@@ -196,6 +208,7 @@ def _find_neighbors(
         current_path (list[str]): Current created path.
         final_paths (list[tuple[str, ...]]): List of finished paths.
         blacklist_paths (set[tuple[str, ...]]): Blacklisted paths.
+        ignore_tokens (set[str]): Tokens to ignore.
 
     Returns:
         list[str]: Stack2 (substack).
@@ -203,6 +216,10 @@ def _find_neighbors(
     stack2 = []
     # finding neighbors
     for neighbor_token, pools in graph[current_token].items():
+        # ignoring token
+        if neighbor_token in ignore_tokens:
+            continue
+
         # end case
         if neighbor_token in final_tokens:
             for pool in pools:

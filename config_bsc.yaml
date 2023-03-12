@@ -12,7 +12,7 @@ transaction:
   min_profit: 0
   gas_reductions: 1
   reduction_denominator: 1.1
-  final_tx: 1.5
+  final_tx: 1.2
 
 price:
   url: !ENV https://api.bscscan.com/api?module=gastracker&action=gasoracle&apikey=${BSCSCAN_AUTH}
@@ -23,14 +23,14 @@ price:
     multiplier: 2
     ratio: 0.95
   mid:
-    multiplier: 4
-    ratio: 0.995
+    multiplier: 3
+    ratio: 0.97
   high:
-    multiplier: 6
-    ratio: 0.995
+    multiplier: 3.5
+    ratio: 0.98
   
   min_gas_multiplier: 1.2
-  max_gas_multiplier: 6
+  max_gas_multiplier: 3.5
 
 poll:
   main: 2
@@ -114,6 +114,10 @@ paths:
     # - "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" # USDC
     # - "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3" # DAI
     # - "0x14016E85a25aeb13065688cAFB43044C2ef86784" # TUSD
+  ignored:
+    - "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" # USDC
+    - "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3" # DAI
+    - "0x14016E85a25aeb13065688cAFB43044C2ef86784" # TUSD
 
 weths:
   - "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"

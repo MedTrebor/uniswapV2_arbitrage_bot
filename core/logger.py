@@ -113,7 +113,8 @@ def get_tx_log(
     neto_profit = bruto_profit - gas_cost - burners_cost
 
     # saving balancer stats
-    save_tx_stats(neto_profit // wei_price)
+    wei_profit = neto_profit // wei_price
+    save_tx_stats(wei_profit)
 
     # getting decimals denominator
     try:

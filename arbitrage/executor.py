@@ -5,17 +5,17 @@ from time import perf_counter
 from typing import Iterator
 
 from hexbytes import HexBytes
-from web3.types import TxReceipt
 
 from blockchain import Web3
 from network.prices import wei_usd_price
-from utils import CONFIG, Logger, str_obj, measure_time
+from utils import CONFIG, BlockTime, Logger, measure_time, str_obj
 from utils._types import ArbArgs, BurnersData, GasParams, Pools, TxParams
 from utils.datastructures import Arbitrage
+from web3.types import TxReceipt
 
 from .arguments import create_arb_args, decode_arb_args
 from .calculator import calc_gas_cost
-from .exceptions import ArbitrageError
+from .exceptions import ArbitrageError, LateTransaction, NotProfitable
 
 log = Logger(__name__)
 
@@ -25,7 +25,7 @@ def exe_arbs(
     gas_params: GasParams,
     pools: Pools,
     burners: list[BurnersData],
-    block_start: float,
+    block_time: BlockTime,
 ) -> tuple[list[TxReceipt], list[ArbArgs]]:
     w3 = Web3()
 
@@ -33,7 +33,7 @@ def exe_arbs(
     transactions = format_transactions(w3, potential_arbs, pools, gas_params, burners)
 
     # executing transactions
-    tx_hashes, arb_args = execute_transactions(w3, transactions, block_start)
+    tx_hashes, arb_args = execute_transactions(w3, transactions, block_time)
 
     # checking if trnasactions were submitted
     if not tx_hashes:
@@ -180,10 +180,10 @@ def get_burner_addresses(burners: list[BurnersData], count: int) -> list[str]:
 def execute_transactions(
     w3: Web3,
     transactions: list[list[TxParams]],
-    block_start: float,
+    block_time: BlockTime,
 ) -> tuple[list[HexBytes], list[ArbArgs]]:
     # time of the final transaction (perf_counter)
-    final_tx_time = block_start + CONFIG["transaction"]["final_tx"]
+    final_tx_time = block_time.start_time + CONFIG["transaction"]["final_tx"]
 
     # creating slot for each transaction in one wave
     tx_hashes = [None] * len(transactions[0])
@@ -222,10 +222,24 @@ def execute_transactions(
                 gas_timer = measure_time("Gas estimetion time: {}")
                 try:
                     if w3.estimator.eth.estimate_gas(tx_params) < 60_000:
-                        raise ValueError("No profit transaction estimated")
+                        raise NotProfitable()
+                    if block_time() > CONFIG["transaction"]["final_tx"]:
+                        raise LateTransaction(block_time())
                 except ValueError as error:
                     log.info(gas_timer())
                     log.error(error)
+                    w3.nonces[w3.account] -= 1
+                    remove_idxs.append(i)
+                    continue
+                except NotProfitable as error:
+                    log.info(gas_timer())
+                    log.warning(error)
+                    w3.nonces[w3.account] -= 1
+                    remove_idxs.append(i)
+                    continue
+                except LateTransaction as error:
+                    log.info(gas_timer())
+                    log.warning(error)
                     w3.nonces[w3.account] -= 1
                     remove_idxs.append(i)
                     continue

@@ -19,10 +19,10 @@ def main():
     w3 = Web3()
 
     abi = persistance.get_abi("WETH")
-    wbnb = w3.eth.contract(CONFIG["weths"][0], abi=abi)
+    wbnb_fst = w3.eth.contract(CONFIG["weths"][1], abi=abi)
 
-    amount = wbnb.functions.balanceOf(CONFIG["router"]).call() - int(1e18)
-    unwrap_withdraw(w3, amount, wbnb.address)
+    amount = wbnb_fst.functions.balanceOf(CONFIG["router"]).call()
+    unwrap_withdraw(w3, amount, wbnb_fst.address)
 
 
 def unwrap_withdraw(w3: Web3, amount: int, wbnb_address: ChecksumAddress):

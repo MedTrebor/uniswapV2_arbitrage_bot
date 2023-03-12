@@ -34,7 +34,6 @@ def check_arbs(
     mid_gas_price: Decimal,
     max_gas_price: Decimal,
     to_blacklist: set[tuple[str, ...]],
-    block_start: float,
 ) -> list[tuple[Arbitrage, Decimal, Decimal]]:
     w3 = Web3()
     call_params = {"from": w3.account}
@@ -66,15 +65,15 @@ def check_arbs(
         filter_profitables(profitables)
 
         # canceling there are no profitables or too much time has passed
-        block_time_passed = perf_counter() - block_start
-        if block_time_passed > CONFIG["transaction"]["max_delay"]:
-            log.warning(f"Slow transaction processing: {block_time_passed:,}.")
-            return []
-        if not profitables:
-            return profitables
+        # block_time_passed = perf_counter() - block_start
+        # if block_time_passed > CONFIG["transaction"]["max_delay"]:
+        #     log.warning(f"Slow transaction processing: {block_time_passed:,}.")
+        #     return []
+        # if not profitables:
+        #     return profitables
 
         # waiting to fetch pending transaction
-        sleep(CONFIG["transaction"]["max_delay"] - block_time_passed)
+        # sleep(CONFIG["transaction"]["max_delay"] - block_time_passed)
 
         # checking if gas prices are high enough
         # log_str = measure_time("Downloaded {:,} pending transactions in {}.")
@@ -224,6 +223,7 @@ def handle_successful(
                 bruto_profit - burners_cost, gas_usage, wei_price, high_multipler
             )
 
+        # FIX BY IGNORING ALL ARBS WITH POOLS WITH HIGH GAS PRICE
         # SKIPPING TX WHERE GAS PRICE IS ABOVE MAXIMUM
         if optimal_gas_price > max_gas_price:
             gwei_price = str_num(optimal_gas_price / Decimal(1e9))
