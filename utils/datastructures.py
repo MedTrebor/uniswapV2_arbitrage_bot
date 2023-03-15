@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Literal
+from typing import Iterator, Literal
 
 from eth_typing import ChecksumAddress
 
@@ -41,6 +41,14 @@ class Arbitrage:
     gas_price: Decimal
     burners_cost: Decimal
     burners_count: int
+
+    def tokens(self) -> Iterator[str | ChecksumAddress]:
+        for i in range(0, len(self.path), 2):
+            yield self.path[i]
+
+    def pairs(self) -> Iterator[str | ChecksumAddress]:
+        for i in range(1, len(self.path), 2):
+            yield self.path[i]
 
     def __lt__(self, other: object) -> bool:
         return self.gas_price < other.gas_price

@@ -1,4 +1,4 @@
-download_pools: False
+download_pools: True
 
 multiprocessing:
   workers: 15
@@ -34,7 +34,8 @@ price:
 
 poll:
   main: 2
-  nodes: 0.042
+  # nodes: 0.042
+  nodes: 0.001
   pools: 7200
   price: 1
   burners: 900
@@ -86,6 +87,7 @@ blockchain:
     # - https://bsc-dataseed3.ninicoin.io/
     # - https://bsc-dataseed4.ninicoin.io/
     - !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
+    # - /mnt/ssd_sata3/bsc/geth.ipc
     # - https://data-seed-prebsc-1-s1.binance.org:8545
   estimator: https://bsc-dataseed2.defibit.io/
   chain_id: 56
@@ -115,9 +117,9 @@ paths:
     # - "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3" # DAI
     # - "0x14016E85a25aeb13065688cAFB43044C2ef86784" # TUSD
   ignored:
-    - "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" # USDC
-    - "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3" # DAI
-    - "0x14016E85a25aeb13065688cAFB43044C2ef86784" # TUSD
+    # - "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" # USDC
+    # - "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3" # DAI
+    # - "0x14016E85a25aeb13065688cAFB43044C2ef86784" # TUSD
 
 weths:
   - "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
@@ -131,6 +133,7 @@ min_gas_limits:
   "4": 240000
 
 router: "0x5573751B3E18848691896BBEAb396Fc8ac2A579b"
+router_multicall: "0x45306BAFCFA41CF634b4302677f2a3f4474856dc"
 
 batch_checker:
   address: "0xc55E0726a2d40ba129879e8bc1D18d0d42fD3c4f"

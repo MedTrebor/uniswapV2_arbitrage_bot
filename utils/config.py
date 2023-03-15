@@ -19,6 +19,10 @@ def load_config() -> None:
     # Hiding sensitive info
     hide_sensitive_info(CONFIG)
 
+    # if no ignored coins, converting to list
+    if not CONFIG["paths"]["ignored"]:
+        CONFIG["paths"]["ignored"] = []
+
 
 def get_network() -> str:
     """Get network name.

@@ -62,7 +62,7 @@ def check_arbs(
             max_gas_price,
             pre_blacklist_paths,
         )
-        filter_profitables(profitables)
+        filter_profitables(profitables, max_gas_price)
 
         # canceling there are no profitables or too much time has passed
         # block_time_passed = perf_counter() - block_start
@@ -225,13 +225,14 @@ def handle_successful(
 
         # FIX BY IGNORING ALL ARBS WITH POOLS WITH HIGH GAS PRICE
         # SKIPPING TX WHERE GAS PRICE IS ABOVE MAXIMUM
-        if optimal_gas_price > max_gas_price:
-            gwei_price = str_num(optimal_gas_price / Decimal(1e9))
-            log.warning(f"Optimal gas price ({gwei_price} GWEI) for {arb} is too high")
-            recalculated_arbs = []
-            break
+        # if optimal_gas_price > max_gas_price:
+        #     gwei_price = str_num(optimal_gas_price / Decimal(1e9))
+        #     log.warning(f"Optimal gas price ({gwei_price} GWEI) for {arb} is too high")
+        #     recalculated_arbs = []
+        #     break
 
-        gas_price = min(optimal_gas_price, max_gas_price)
+        # gas_price = min(optimal_gas_price, max_gas_price)
+        gas_price = optimal_gas_price
 
         # calculate gas cost in arbitraged token
         gas_cost = calc_gas_cost(gas_price, gas_usage, wei_price)
@@ -261,24 +262,36 @@ def handle_successful(
     return recalculated_arbs
 
 
-def filter_profitables(profitables: list[tuple[Arbitrage, Decimal, Decimal]]) -> None:
+def filter_profitables(
+    profitables: list[tuple[Arbitrage, Decimal, Decimal]], max_gas_price: Decimal
+) -> None:
     # sorting by gas price
     profitables.sort(key=lambda x: x[0], reverse=True)
 
     # getting unique pools
     to_exclude_idx, all_pairs = [], set()
-    for i0, (arb, *_) in enumerate(profitables):
-
+    for i, (arb, *_) in enumerate(profitables):
         # iterating through all pairs
-        for i1 in range(1, len(arb.path), 2):
-            pair = arb.path[i1]
-
+        current_pairs = set()
+        for pair in arb.pairs():
             if pair in all_pairs:
                 # pair is already in more profitable arbitrage
-                to_exclude_idx.append(i0)
+                to_exclude_idx.append(i)
+                current_pairs.clear()
                 break
 
-            all_pairs.add(pair)
+            current_pairs.add(pair)
+
+        all_pairs.update(current_pairs)
+
+        # removing high gas price arbs
+        if current_pairs and arb.gas_price > max_gas_price:
+            gwei_price = str_num(arb.gas_price / Decimal(1e9))
+            log.warning(f"Optimal gas price ({gwei_price} GWEI) for {arb} is too high.")
+
+            to_exclude_idx.append(i)
+            continue
+
 
     # removing less profitable arbs with same pairs
     for i, idx in enumerate(to_exclude_idx):

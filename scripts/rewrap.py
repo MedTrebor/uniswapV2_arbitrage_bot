@@ -22,9 +22,9 @@ def main():
     wbnb = w3.eth.contract(CONFIG["weths"][0], abi=abi)
     wbnb_fst = w3.eth.contract(CONFIG["weths"][1], abi=abi)
 
-    amount = 1075879527284881138
+    amount = wbnb_fst.functions.balanceOf(w3.router).call()
 
-    # unwrap_withdraw(w3, amount, wbnb_fst.address)
+    unwrap_withdraw(w3, amount, wbnb_fst.address)
     wrap(w3, wbnb, amount)
     transfer_wbnb(w3, wbnb, amount)
 

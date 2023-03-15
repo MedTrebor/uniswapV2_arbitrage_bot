@@ -149,6 +149,7 @@ class ConfigDict(TypedDict):
     price: Price
     min_gas_limits: dict[str, int]
     router: ChecksumAddress
+    router_multicall: ChecksumAddress
     batch_checker: BatchChecker
     factories: dict[ChecksumAddress, int | str]
     blacklist: int
