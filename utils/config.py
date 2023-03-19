@@ -51,10 +51,11 @@ def get_network() -> str:
 
 def hide_sensitive_info(config: dict) -> None:
     config["blockchain"]["account"] = SecretStr(config["blockchain"]["account"])
-    config["blockchain"]["endpoints"] = [
-        SecretStr(url) for url in config["blockchain"]["endpoints"]
+    config["blockchain"]["endpoints"]["main"] = SecretStr(config["blockchain"]["endpoints"]["main"])
+    config["blockchain"]["endpoints"]["sync"] = SecretStr(config["blockchain"]["endpoints"]["sync"])
+    config["blockchain"]["endpoints"]["other"] = [
+        SecretStr(url) for url in config["blockchain"]["endpoints"]["other"]
     ]
-    config["blockchain"]["estimator"] = SecretStr(config["blockchain"]["estimator"])
 
     config["price"]["url"] = SecretStr(config["price"]["url"])
 

@@ -15,7 +15,7 @@ from web3.types import TxReceipt
 
 from .arguments import create_arb_args, decode_arb_args
 from .calculator import calc_gas_cost
-from .exceptions import ArbitrageError, LateTransaction, NotProfitable
+from .exceptions import ArbitrageError, LateTransaction, NotProfitable, MixedEstimation
 
 log = Logger(__name__)
 
@@ -41,7 +41,8 @@ def exe_arbs(
 
     # confirming transactions
     conf_s = "confirmations" if len(tx_hashes) > 1 else "confirmation"
-    log.info(f"Waiting for {conf_s}: {str_obj(tx_hashes)}")
+    log_obj = tx_hashes if len(tx_hashes) > 1 else tx_hashes[0].hex()
+    log.info(f"Waiting for {conf_s}: {log_obj}")
 
     # getting transaction receipts
     tx_receipts = [w3.wait_for_tx_receipt(tx_hash) for tx_hash in tx_hashes]
@@ -182,6 +183,8 @@ def execute_transactions(
     transactions: list[list[TxParams]],
     block_time: BlockTime,
 ) -> tuple[list[HexBytes], list[ArbArgs]]:
+    confirms = CONFIG["transaction"]["estimation_confirms"]
+
     # time of the final transaction (perf_counter)
     final_tx_time = block_time.start_time + CONFIG["transaction"]["final_tx"]
 
@@ -220,11 +223,34 @@ def execute_transactions(
 
                 # checking gas
                 gas_timer = measure_time("Gas estimetion time: {}")
+                profitables, nonprofitables, errors = 0, 0, 0
                 try:
-                    if w3.estimator.eth.estimate_gas(tx_params) < 60_000:
-                        raise NotProfitable()
-                    if block_time() > CONFIG["transaction"]["final_tx"]:
-                        raise LateTransaction(block_time())
+                    for gas in w3.batch_estimate_gas(tx_params):
+                        if isinstance(gas, ValueError):
+                            errors += 1
+                            if errors >= confirms:
+                                raise gas
+                            continue
+
+                        if gas < 60_000:
+                            nonprofitables += 1
+                            if nonprofitables >= confirms:
+                                raise NotProfitable()
+                            continue
+
+                        profitables += 1
+                        if profitables >= confirms:
+                            if block_time() > CONFIG["transaction"]["final_tx"]:
+                                raise LateTransaction(block_time())
+                            break
+
+                    if profitables < confirms:
+                        raise MixedEstimation(profitables, nonprofitables, errors)
+
+                    # if w3.estimator.eth.estimate_gas(tx_params) < 60_000:
+                    #     raise NotProfitable()
+                    # if block_time() > CONFIG["transaction"]["final_tx"]:
+                    #     raise LateTransaction(block_time())
                 except ValueError as error:
                     log.info(gas_timer())
                     log.error(error)
@@ -243,10 +269,15 @@ def execute_transactions(
                     w3.nonces[w3.account] -= 1
                     remove_idxs.append(i)
                     continue
+                except MixedEstimation as error:
+                    log.info(gas_timer())
+                    log.warning(error)
+                    w3.nonces[w3.account] -= 1
+                    remove_idxs.append(i)
+                    continue
 
                 # executing transaction on each node
-                for node in w3.nodes:
-                    tx_hash = node.eth.send_transaction(tx_params)
+                tx_hash = w3.batch_transact(tx_params)
 
                 log.info(gas_timer())
 

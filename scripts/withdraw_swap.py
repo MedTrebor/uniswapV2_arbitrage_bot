@@ -20,7 +20,7 @@ from web3.exceptions import TimeExhausted
 install(extra_lines=6, show_locals=True)
 
 GAS_PRICE = int(1e9) + 1
-TOKEN = "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56"
+TOKEN = "0x55d398326f99059fF775485246999027B3197955"
 KEEP_AMOUNT = Decimal(int(3e20))
 SLIPPAGE = Decimal("0.999")
 

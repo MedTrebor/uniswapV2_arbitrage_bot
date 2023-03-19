@@ -121,7 +121,12 @@ def exe_batch_check_arbs(
                 )
             )
         except ValueError as error:
-            log.error(f"Error in batch checking: {error}")
+            try:
+                msg = error.args[0]["message"]
+                if msg != "out of gas":
+                    log.error(f"Error in batch checking: {msg}")
+            except (IndexError, TypeError, KeyError):
+                log.error(f"Error in batch checking: {error}")
 
             # append error if splitting is not possible
             if len(batch_args[1]) == 1:
@@ -291,7 +296,6 @@ def filter_profitables(
 
             to_exclude_idx.append(i)
             continue
-
 
     # removing less profitable arbs with same pairs
     for i, idx in enumerate(to_exclude_idx):

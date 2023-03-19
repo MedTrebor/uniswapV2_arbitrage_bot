@@ -30,8 +30,6 @@ def main():
     }
     all_stats.append(stats)
 
-    print(all_stats)
-
     persistance.save_balance_stats(all_stats)
 
 

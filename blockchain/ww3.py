@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from functools import partial, wraps
 from json import JSONDecodeError
@@ -13,14 +13,14 @@ from hexbytes import HexBytes
 from requests import Session
 
 import persistance
-from utils import CONFIG, Logger, WaitPrevious, singleton
-from utils._types import Blockchain, BlockchainTx, ConfigDict, RawTransaction, TxTrace
+from utils import CONFIG, Logger, WaitPrevious, measure_time, singleton
+from utils._types import BlockchainTx, ConfigDict, RawTransaction, TxParams, TxTrace
 from utils.datastructures import SecretStr
 from web3 import HTTPProvider, IPCProvider
 from web3 import Web3 as _Web3
 from web3 import WebsocketProvider
 from web3._utils.encoding import to_json
-from web3._utils.filters import LogFilter, TransactionFilter
+from web3._utils.filters import LogFilter
 from web3.contract import Contract
 from web3.datastructures import AttributeDict
 from web3.exceptions import TransactionNotFound
@@ -34,7 +34,7 @@ from web3.types import TxReceipt, Wei
 
 from .exceptions import BlockchainError
 
-validation.METHODS_TO_VALIDATE = []
+validation.METHODS_TO_VALIDATE.clear()
 
 log = Logger(__name__)
 
@@ -66,50 +66,74 @@ class Web3:
     __slots__ = (
         "__node_idx",
         "_pool_sync_filter",
+        "_sync_node",
+        "other_nodes",
         "account",
         "batch_checkers",
         "burner_factory",
         "chain_id",
+        # "estimator",
         "eth",
         "factories",
         "http_sessions",
+        "main_node",
         "multicalls",
         "nodes",
-        "estimator",
         "nonces",
-        # "pending_filters",
+        # pending_filter,
         "router",
+        "sync_poll",
+        "local_poll",
         "transfer_decoder",
+        "thread_executor",
     )
 
     def __init__(self, conf: ConfigDict = CONFIG) -> None:
         self.chain_id = conf["blockchain"]["chain_id"]
-        self.nodes = create_web3_instances(conf["blockchain"])
-        self.estimator = _Web3(HTTPProvider(CONFIG["blockchain"]["estimator"].str()))
-        self.eth = self.nodes[0].eth
+
+        endpoints = conf["blockchain"]["endpoints"]
+        poa = conf["blockchain"]["geth_poa_middleware"]
+
+        self.main_node = create_web3_instances(endpoints["main"], poa=poa)[0]
+        self._sync_node = create_web3_instances(endpoints["sync"], poa=poa)[0]
+        self.other_nodes = create_web3_instances(*endpoints["other"], poa=poa)
+
+        self.sync_poll = WaitPrevious(conf["poll"]["sync_node"])
+        self.local_poll = WaitPrevious(conf["poll"]["main_node"])
+
+        ############################# PATCH ################################
+        #### put '_sync_node' 1st to be called with 'self.node' propery ####
+        self.nodes = [self._sync_node, self.main_node, *self.other_nodes]  #
+        ####################################################################
+        self.eth = self.main_node.eth
         self.account = create_account(conf["blockchain"]["account"], self.nodes)
-        self.__node_idx = node_idx(len(self.nodes), conf["poll"]["nodes"])
+        self.__node_idx = node_idx(1, conf["poll"]["sync_node"])
         self.factories = create_factories(conf["factories"], self.nodes)
         self.multicalls = create_multicalls(conf["multicall"]["address"], self.nodes)
-        self.batch_checkers = create_batch_chackers(
-            conf["batch_checker"]["address"], self.nodes
-        )
+        ############################ PATCH ############################
+        # put batch checker to 'self.main_mode' to get local ipc node #
+        self.batch_checkers = create_batch_chackers(  #################
+            conf["batch_checker"]["address"], [self.main_node]  #######
+        )  ############################################################
+
         # self.routers = create_routers(conf["routers"], self.nodes)
         self.router = CONFIG["router"]
         """Router addresses"""
         self._pool_sync_filter = create_pool_sync_filter(
-            self.nodes[0], persistance.get_last_block()
+            self._sync_node, persistance.get_last_block()
         )
         self.node_idx
         self.nonces: dict[str, int] = {}  # type ignore
-        self.http_sessions = create_http_sessions(conf["blockchain"]["endpoints"])
+        self.http_sessions = create_http_sessions([endpoints["main"]])
         """Holds `requests.Session` and endpoint wrapped in `SecretStr`."""
         # self.pending_filters: list[TransactionFilter] = [
         #     node.eth.filter("pending") for node in self.nodes
         # ]
         self.node_idx
-        self.transfer_decoder = create_transfer_decoder(self.nodes[0])
+        self.transfer_decoder = create_transfer_decoder(self.main_node)
         self.burner_factory = CONFIG["burner"]["factory"]
+
+        self.thread_executor = ThreadPoolExecutor(len(self.nodes) * 2, "Web3")
         log.debug("Created Wrapped Web3.")
 
     def nonce(
@@ -313,7 +337,7 @@ class Web3:
         retries = 0
         while retries < CONFIG["max_retries"]:
             try:
-                response = self.node.manager.provider.make_request(
+                response = self.sync_node.manager.provider.make_request(
                     "debug_traceTransaction", [tx_hash, {"tracer": "callTracer"}]
                 )
 
@@ -327,6 +351,32 @@ class Web3:
 
         raise BlockchainError(f"Could not get transaction trace for {tx_hash}")
 
+    def batch_estimate_gas(self, tx_params: TxParams) -> Iterator[int | ValueError]:
+        time_passed = measure_time("{}")
+        results = [
+            self.thread_executor.submit(wrapped_estimate_gas, node, tx_params)
+            for node in [self.main_node, self._sync_node]
+        ]
+        for i, result in enumerate(as_completed(results), start=1):
+            res, url = result.result()
+            log.info(
+                f"Estimate result : {i:>2}/{len(results):>2} : [default]{url}[/] : {time_passed()} : {res}"
+            )
+            yield res
+
+    def batch_transact(self, tx_params: TxParams) -> HexBytes:
+        results = [
+            self.thread_executor.submit(wrapped_transact, node, tx_params)
+            for node in self.nodes
+        ]
+
+        for result in as_completed(results):
+            hash = result.result()
+            if isinstance(hash, HexBytes):
+                return hash
+
+        raise hash
+
     @property
     def node_idx(self) -> int:
         """Get next node index while respecting poll interval."""
@@ -334,8 +384,25 @@ class Web3:
 
     @property
     def node(self) -> _Web3:
-        """Get next node instance while respecting poll interval."""
+        """Get next main node instance while respecting poll interval."""
         return self.nodes[self.node_idx]
+
+    @property
+    def local_node(self) -> _Web3:
+        """Get local node instance while respecting poll interval."""
+        self.local_poll()
+        return self.main_node
+
+    @property
+    def node(self) -> _Web3:
+        """Get next main node instance while respecting poll interval."""
+        return self.nodes[self.node_idx]
+
+    @property
+    def sync_node(self) -> _Web3:
+        """Get sync node instance while respecting poll interval."""
+        self.sync_poll()
+        return self._sync_node
 
     @property
     def multicall(self) -> Contract:
@@ -355,7 +422,9 @@ class Web3:
     @property
     def batch_checker(self) -> Contract:
         """Get next `BatchChecker` while respecting poll interval."""
-        return self.batch_checkers[self.node_idx]
+        # getting main_node batch checker
+        # PATCHED
+        return self.batch_checkers[0]
 
     @property
     def block_number(self) -> int:
@@ -497,6 +566,7 @@ class Web3:
             return
 
     def __del__(self):
+        self.thread_executor.shutdown(cancel_futures=True)
         try:
             for session, _ in self.http_sessions:
                 session.close()
@@ -504,18 +574,44 @@ class Web3:
             return
 
 
-def create_web3_instances(conf: Blockchain) -> list[_Web3]:
-    """Create Web3 instances and add middleware if necessary.
+# def create_web3_instances(conf: BlockchainConf) -> list[_Web3]:
+#     """Create Web3 instances and add middleware if necessary.
+
+#     Args:
+#         conf (Blockchain): Blockchain network configuration.
+
+#     Returns:
+#         list[_Web3]: Web3 instances.
+#     """
+#     nodes = []
+#     for endpoint in conf["endpoints"]:
+#         endpoint = endpoint.str()
+#         if endpoint.startswith("http"):
+#             provider = HTTPProvider(endpoint)
+#         elif endpoint.startswith("ws"):
+#             provider = WebsocketProvider(endpoint)
+#         elif endpoint.endswith(".ipc"):
+#             provider = IPCProvider(endpoint)
+#         node = _Web3(provider)
+#         if conf["geth_poa_middleware"]:
+#             node.middleware_onion.inject(geth_poa_middleware, layer=0)
+#         nodes.append(node)
+#     return nodes
+
+
+def create_web3_instances(*urls: SecretStr, poa: bool = False) -> list[_Web3]:
+    """Create Web3 instances and add PoA middleware if necessary.
 
     Args:
-        conf (Blockchain): Blockchain network configuration.
+        urls (SecretStr): Endpoint URL.
+        poa (bool, optional): Proof of Authority. Defaults to False.
 
     Returns:
         list[_Web3]: Web3 instances.
     """
     nodes = []
-    for endpoint in conf["endpoints"]:
-        endpoint = endpoint.str()
+    for url in urls:
+        endpoint = url.str()
         if endpoint.startswith("http"):
             provider = HTTPProvider(endpoint)
         elif endpoint.startswith("ws"):
@@ -523,7 +619,7 @@ def create_web3_instances(conf: Blockchain) -> list[_Web3]:
         elif endpoint.endswith(".ipc"):
             provider = IPCProvider(endpoint)
         node = _Web3(provider)
-        if conf["geth_poa_middleware"]:
+        if poa:
             node.middleware_onion.inject(geth_poa_middleware, layer=0)
         nodes.append(node)
     return nodes
@@ -700,3 +796,30 @@ def create_transfer_decoder(
     token = node.eth.contract(abi=persistance.get_abi("Token"))
 
     return partial(token.events.Transfer().process_receipt, errors=DISCARD)
+
+
+def wrapped_estimate_gas(
+    node: _Web3, tx_params: TxParams
+) -> tuple[object | ValueError, str]:
+    url = getattr(
+        node.manager.provider,
+        "endpoint_uri",
+        getattr(node.manager.provider, "ipc_path", ""),
+    )
+
+    gas_time = measure_time(f"[default]{url}[/] : {'{}'}")
+    try:
+        res = node.eth.estimate_gas(tx_params)
+    except ValueError as err:
+        res = err
+
+    log.info(gas_time())
+
+    return res, url
+
+
+def wrapped_transact(node: _Web3, tx_params: TxParams) -> HexBytes | ValueError:
+    try:
+        return node.eth.send_transaction(tx_params)
+    except ValueError as error:
+        return error

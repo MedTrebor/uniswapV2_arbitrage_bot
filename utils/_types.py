@@ -18,11 +18,13 @@ class TransactionConf(TypedDict):
     gas_reductions: int
     reduction_denominator: int | float
     final_tx: int | float
+    estimation_confirms: int
 
 
-class Poll(TypedDict):
+class PollConf(TypedDict):
     main: int | float
-    nodes: int | float
+    main_node: int | float
+    sync_node: int | float
     pools: int | float
     price: int | float
     burners: int | float
@@ -63,10 +65,16 @@ class TokenParmas(TypedDict):
     decimals: int
 
 
-class Blockchain(TypedDict):
+class EndpointsConf(TypedDict):
+    main: SecretStr
+    sync: SecretStr
+    other: list[SecretStr]
+
+
+class BlockchainConf(TypedDict):
     name: str
     account: SecretStr
-    endpoints: list[SecretStr]
+    endpoints: EndpointsConf
     estimator: SecretStr
     chain_id: int
     geth_poa_middleware: bool
@@ -91,6 +99,7 @@ class Paths(TypedDict):
     length: int
     tokens: list[ChecksumAddress]
     ignored: list[ChecksumAddress]
+
 
 class GasPriceConf(TypedDict):
     multiplier: int | float
@@ -136,11 +145,11 @@ class ConfigDict(TypedDict):
     multiprocessing: Multiprocessing
     max_retries: int
     transaction: TransactionConf
-    poll: Poll
+    poll: PollConf
     restart: RestartConf
     burner: BurnerConf
     logging: Logging
-    blockchain: Blockchain
+    blockchain: BlockchainConf
     event_log: EventLog
     multicall: Multicall
     filter: Filter

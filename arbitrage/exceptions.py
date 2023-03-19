@@ -41,3 +41,23 @@ class NotProfitable(ArbitrageError):
 
     def __str__(self) -> str:
         return "Non profitable transaction estimated"
+
+
+class MixedEstimation(ArbitrageError):
+    """Raised when mixed results in gas estimation."""
+
+    def __init__(
+        self, profitables: int, nonprofitables: int, errors: int, *args: object
+    ) -> None:
+        super().__init__(*args)
+        self.profitables = profitables
+        self.nonprofitables = nonprofitables
+        self.errors = errors
+
+    def __str__(self) -> str:
+        return (
+            f"Mixed Results in gas estimation. "
+            f"Profitables: {self.profitables:,}  "
+            f"Nonprofitables: {self.nonprofitables:,}  "
+            f"Errors: {self.errors:,}"
+        )

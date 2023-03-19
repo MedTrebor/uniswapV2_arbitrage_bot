@@ -104,7 +104,7 @@ def exe_tx(acc: ChecksumAddress, calldata: str) -> bool:
     }
     tx_params["gas"] = int(w3.node.eth.estimate_gas(tx_params) * 1.2)
 
-    tx_hash = w3.eth.send_transaction(tx_params)
+    tx_hash = w3.node.eth.send_transaction(tx_params)
     log.info(
         "Burner creation transaction sent.\nTransaction hash: [not b blue]"
         f"{tx_hash.hex()}[/]\nTransaction parameters: {str_obj(tx_params)}"
@@ -121,7 +121,7 @@ def exe_tx(acc: ChecksumAddress, calldata: str) -> bool:
         try:
             if send_tx:
                 tx_hash = w3.node.eth.send_transaction(tx_params)
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 120, 1)
+            receipt = w3.node.eth.wait_for_transaction_receipt(tx_hash, 120, 3)
             break
 
         except ValueError as err:

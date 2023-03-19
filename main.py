@@ -8,7 +8,7 @@ from time import perf_counter, sleep, time
 import arbitrage
 import blockchain
 import persistance
-from core import PricePollInterval, loader, logger, processes, whitelist
+from core import PricePollInterval, loader, logger, processes, whitelist, sync
 from network import prices
 from utils import CONFIG, BlockTime, Logger, TimePassed, WaitPrevious, measure_time
 
@@ -21,6 +21,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
     network = CONFIG["blockchain"]["name"]
 
     w3 = blockchain.Web3(new_singleton=True)
+    # sync.start()
     price = PricePollInterval(network, new_singleton=True)
 
     thread_executor = ThreadPoolExecutor(thread_name_prefix="Thread")
@@ -130,6 +131,9 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                     last_block,
                 ) = blockchain.get_changed_pools(pools, last_block)
 
+            # get block info from sync node
+            # block_time, sync_block = sync.block_time(), sync.block()
+
             to_update.update(changed_pools)
             changed_log = f"{len(changed_pools):,} changed pools in {timedelta(seconds=perf_counter() - start)}."
             end_log = "\n" + changed_log + "\n"
@@ -148,6 +152,13 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
             export_log = log_str()
             log.debug(log_str())
             end_log += export_log + "\n"
+
+            # check if in sync
+            # if last_block < sync_block:
+            #     log.warning(
+            #         f"Node out of sync.\nMain: {last_block:,}\nSync: {sync_block:,}"
+            #     )
+            #     continue
 
             # TEMP: checking if reserve is ok in sync event
             # if len(copied_pools) == len(changed_pools):
@@ -181,6 +192,20 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
             # iterage through potentially profitable arbitrages
             if raw_arbitrages:
+                # wait until local node is synced
+                local_block, to_report = w3.local_node.eth.block_number, False
+
+                _sync_log = measure_time("Local node synced in {}.")
+                while local_block < last_block:
+                    if not to_report:
+                        to_report = True
+                    local_block = w3.local_node.eth.block_number
+
+                sync_log = _sync_log()
+                if to_report:
+                    log.debug(sync_log)
+                    end_log += sync_log + "\n"
+
                 to_blacklist = set()
 
                 start = perf_counter()
@@ -226,7 +251,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                             log.info(
                                 f"Last block: {last_block:,}, Execution block: {receipt['blockNumber']:,}"
                             )
-                        log.info(f"Used burners: {used_burners}")
+                        log.info(f"Used burners:\n{used_burners}")
                         blockchain.remove_used_burners(burners, used_burners)
                         persistance.save_burners(burners)
 
@@ -298,6 +323,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
     finally:
         thread_executor.shutdown(True, cancel_futures=True)
         price.kill()
+        # sync.kill()
 
 
 if __name__ == "__main__":

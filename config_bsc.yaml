@@ -1,4 +1,4 @@
-download_pools: True
+download_pools: False
 
 multiprocessing:
   workers: 15
@@ -12,7 +12,8 @@ transaction:
   min_profit: 0
   gas_reductions: 1
   reduction_denominator: 1.1
-  final_tx: 1.2
+  final_tx: 1.25
+  estimation_confirms: 2
 
 price:
   url: !ENV https://api.bscscan.com/api?module=gastracker&action=gasoracle&apikey=${BSCSCAN_AUTH}
@@ -20,22 +21,24 @@ price:
 
   # gas price multipliers
   low:
-    multiplier: 2
-    ratio: 0.95
+    multiplier: 2.01
+    ratio: 0.94
+  # skipping mid and high
   mid:
     multiplier: 3
     ratio: 0.97
   high:
     multiplier: 3.5
     ratio: 0.98
-  
+
   min_gas_multiplier: 1.2
-  max_gas_multiplier: 3.5
+  max_gas_multiplier: 2.01
 
 poll:
-  main: 2
+  main: 1
   # nodes: 0.042
-  nodes: 0.001
+  main_node: 0.0001
+  sync_node: 0.042
   pools: 7200
   price: 1
   burners: 900
@@ -72,24 +75,42 @@ logging:
 blockchain:
   name: "bsc"
   account: !ENV ${BSC_PK1}
+  # endpoints:
+  #   # - https://bsc-dataseed.binance.org/
+  #   # - https://bsc-dataseed1.binance.org/
+  #   # - https://bsc-dataseed2.binance.org/
+  #   # - https://bsc-dataseed3.binance.org/
+  #   # - https://bsc-dataseed4.binance.org/
+  #   # - https://bsc-dataseed1.defibit.io/
+  #   # - https://bsc-dataseed2.defibit.io/
+  #   # - https://bsc-dataseed3.defibit.io/
+  #   # - https://bsc-dataseed4.defibit.io/
+  #   # - https://bsc-dataseed1.ninicoin.io/
+  #   # - https://bsc-dataseed2.ninicoin.io/
+  #   # - https://bsc-dataseed3.ninicoin.io/
+  #   # - https://bsc-dataseed4.ninicoin.io/
+  #   # - !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
+  #   - /mnt/ssd_sata3/bsc/geth.ipc
+  #   # - https://data-seed-prebsc-1-s1.binance.org:8545
+  # estimator: https://bsc-dataseed2.defibit.io/
   endpoints:
-    # - https://bsc-dataseed.binance.org/
-    # - https://bsc-dataseed1.binance.org/
-    # - https://bsc-dataseed2.binance.org/
-    # - https://bsc-dataseed3.binance.org/
-    # - https://bsc-dataseed4.binance.org/
-    # - https://bsc-dataseed1.defibit.io/
-    # - https://bsc-dataseed2.defibit.io/
-    # - https://bsc-dataseed3.defibit.io/
-    # - https://bsc-dataseed4.defibit.io/
-    # - https://bsc-dataseed1.ninicoin.io/
-    # - https://bsc-dataseed2.ninicoin.io/
-    # - https://bsc-dataseed3.ninicoin.io/
-    # - https://bsc-dataseed4.ninicoin.io/
-    - !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
-    # - /mnt/ssd_sata3/bsc/geth.ipc
-    # - https://data-seed-prebsc-1-s1.binance.org:8545
-  estimator: https://bsc-dataseed2.defibit.io/
+    main: /home/medtrebor/bsc/data/geth.ipc
+    # main: !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
+    sync: !ENV https://shy-small-resonance.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
+    other:
+      - https://bsc-dataseed1.defibit.io/
+      - https://bsc-dataseed1.ninicoin.io/
+      - https://bsc-dataseed.binance.org/
+      - https://bsc-dataseed2.defibit.io/
+      - https://bsc-dataseed2.ninicoin.io/
+      - https://bsc-dataseed1.binance.org/
+      - https://bsc-dataseed3.defibit.io/
+      - https://bsc-dataseed3.ninicoin.io/
+      - https://bsc-dataseed2.binance.org/
+      - https://bsc-dataseed4.defibit.io/
+      - https://bsc-dataseed4.ninicoin.io/
+      - https://bsc-dataseed3.binance.org/
+      - https://bsc-dataseed4.binance.org/
   chain_id: 56
   # chain_id: 97
   geth_poa_middleware: True

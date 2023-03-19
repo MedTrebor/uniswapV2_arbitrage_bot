@@ -379,7 +379,7 @@ def tweak_amount_in(
     best_profit = profit0
     best_i = 0
 
-    for i in range(1, 11):
+    for i in range(1, 30):
         amount_in = round(amount_in0 * Decimal(i / 100 + 1), 0)
         amount_out = get_path_amount_out(amount_in, pools, path)
         profit = amount_out - amount_in
@@ -388,6 +388,9 @@ def tweak_amount_in(
             best_amount_in = amount_in
             best_profit = profit
             best_i = i
+
+        elif profit < best_profit:
+            break
 
     return best_amount_in, best_profit, best_i
 
