@@ -29,17 +29,18 @@ SYMBOLS = {
 
 def log_executed_arbs(
     tx_receipts: list[TxReceipt],
+    arbs: list[Arbitrage],
     arb_args: list[ArbArgs],
     used_burners: list[ChecksumAddress],
 ):
-    for receipt, args in zip(tx_receipts, arb_args, strict=True):
+    for receipt, arb, args in zip(tx_receipts, arbs, arb_args, strict=True):
         status, style = get_tx_status(receipt["status"], args["burners"], used_burners)
         tx_hash = receipt["transactionHash"].hex()
         url = "https://bscscan.com/tx/" + tx_hash
 
         log_str = f"{style}ARBITRAGE EXECUTED[/]\n[b]STATUS[/]: {status}\n"
         log_str += f"[b]TRANSACTION HASH[/]: [not b blue link={url}]{tx_hash}[/]\n"
-        log_str += get_tx_log(status, receipt, args)
+        log_str += get_tx_log(status, receipt, arb, args)
 
         _log = log.error if status == "revert" else log.info
         _log(log_str)
@@ -67,8 +68,10 @@ def get_tx_status(
 def get_tx_log(
     status: str,
     tx_receipt: TxReceipt,
+    arb: Arbitrage,
     arb_args: ArbArgs,
 ) -> str:
+    noprofit_paths = persistance.load_noprofit_paths()
     burn_cost = Decimal(36_930) * Decimal(CONFIG["burner"]["gas_price"])
     gas_price = Decimal(tx_receipt["effectiveGasPrice"])
     gas_used = Decimal(tx_receipt["gasUsed"])
@@ -84,13 +87,31 @@ def get_tx_log(
             loss += burn_cost
         save_tx_stats(-loss)
 
-        str_loss = str_num(loss / Decimal(1e18))
+        # updating nonprofitable paths
+        noprofit_count = noprofit_paths.get(arb.path, 0)
+        noprofit_count += 1
+        noprofit_paths[arb.path] = noprofit_count
+        persistance.save_noprofit_paths(noprofit_paths)
 
-        log_str = f"[b]GAS PRICE[/]: [yellow]{str_gas_price}[/] GWEI\n"
+        str_loss = str_num(loss / Decimal(1e18))
+        str_path = symbolize_path([token for token in arb.tokens()])
+        str_noprofit_count = str_num(noprofit_count)
+
+        log_str = f"[b]PATH[/]: {str_path}\n"
+        log_str += f"[b]NO PROFIT COUNT[/]: [default not b]{str_noprofit_count}[/]\n"
+        log_str += f"[b]GAS PRICE[/]: [yellow]{str_gas_price}[/] GWEI\n"
         log_str += f"[b]GAS USED[/]: [orange1]{str_gas_used}[/]\n"
         log_str += f"[b]LOSS[/]: [red]{str_loss}[/] BNB"
 
         return log_str
+
+    # removing path from nonprofitable paths
+    if arb.path in noprofit_paths:
+        log.info(
+            f"Path profitable after {noprofit_paths[arb.path]:,} nonprofitable transactions."
+        )
+        del noprofit_paths[arb.path]
+        persistance.save_noprofit_paths(noprofit_paths)
 
     # success case
     transfer_logs = Web3().get_transfer_event_logs(tx_receipt)

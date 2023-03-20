@@ -11,11 +11,12 @@ from network.prices import wei_usd_price
 from utils import CONFIG, BlockTime, Logger, measure_time, str_obj
 from utils._types import ArbArgs, BurnersData, GasParams, Pools, TxParams
 from utils.datastructures import Arbitrage
+from web3.exceptions import ContractLogicError
 from web3.types import TxReceipt
 
 from .arguments import create_arb_args, decode_arb_args
 from .calculator import calc_gas_cost
-from .exceptions import ArbitrageError, LateTransaction, NotProfitable, MixedEstimation
+from .exceptions import ArbitrageError, LateTransaction, MixedEstimation, NotProfitable
 
 log = Logger(__name__)
 
@@ -26,18 +27,20 @@ def exe_arbs(
     pools: Pools,
     burners: list[BurnersData],
     block_time: BlockTime,
-) -> tuple[list[TxReceipt], list[ArbArgs]]:
+) -> tuple[list[TxReceipt], list[Arbitrage], list[ArbArgs]]:
     w3 = Web3()
 
     # formatting transaction parameters
     transactions = format_transactions(w3, potential_arbs, pools, gas_params, burners)
 
     # executing transactions
-    tx_hashes, arb_args = execute_transactions(w3, transactions, block_time)
+    tx_hashes, arbs, arb_args = execute_transactions(
+        w3, transactions, potential_arbs, block_time
+    )
 
     # checking if trnasactions were submitted
     if not tx_hashes:
-        return [], []
+        return [], [], []
 
     # confirming transactions
     conf_s = "confirmations" if len(tx_hashes) > 1 else "confirmation"
@@ -47,7 +50,7 @@ def exe_arbs(
     # getting transaction receipts
     tx_receipts = [w3.wait_for_tx_receipt(tx_hash) for tx_hash in tx_hashes]
 
-    return tx_receipts, arb_args
+    return tx_receipts, arbs, arb_args
 
 
 def format_transactions(
@@ -56,42 +59,17 @@ def format_transactions(
     pools: Pools,
     gas_params: GasParams,
     burners: list[BurnersData],
-) -> list[list[TxParams]]:
+) -> list[TxParams]:
     account = w3.account
-    gas_reductions = CONFIG["transaction"]["gas_reductions"]
-    reduction_denominator = Decimal(CONFIG["transaction"]["reduction_denominator"])
     burners = deepcopy(burners)
 
-    # creating empty array for each trancacion (gas reductions + final transaction)
-    transactions = [[] for _ in range(gas_reductions + 1)]
-
-    for arb, gas_usage, final_gas_price in arbs_with_gas:
-        i = gas_reductions
-
-        # formatting final transaction
+    transactions = []
+    for arb, gas_usage, gas_price in arbs_with_gas:
         burner_addresses = get_burner_addresses(burners, arb.burners_count)
         arb_args = create_arb_args(arb, pools, burner_addresses)
-        tx_params = create_tx_params(
-            w3, arb_args, gas_params, final_gas_price, gas_usage
-        )
+        tx_params = create_tx_params(w3, arb_args, gas_params, gas_price, gas_usage)
 
-        transactions[i].append(tx_params)
-        i -= 1
-
-        # formatting transactions with lower gas price
-        for gas_price in reduce_gas(
-            final_gas_price, gas_reductions, reduction_denominator
-        ):
-            # mutating arb to match lower gas
-            recalculate_arb(arb, gas_usage, gas_price)
-
-            # foramtting transaction
-            arb_args = create_arb_args(arb, pools, burner_addresses)
-            tx_params = create_tx_params(w3, arb_args, gas_params, gas_price, gas_usage)
-
-            transactions[i].append(tx_params)
-            i -= 1
-
+        transactions.append(tx_params)
         w3.nonces[account] += 1
 
     return transactions
@@ -180,118 +158,241 @@ def get_burner_addresses(burners: list[BurnersData], count: int) -> list[str]:
 
 def execute_transactions(
     w3: Web3,
-    transactions: list[list[TxParams]],
+    transactions: list[TxParams],
+    potential_arbs: list[tuple[Arbitrage, Decimal, Decimal]],
     block_time: BlockTime,
-) -> tuple[list[HexBytes], list[ArbArgs]]:
+) -> tuple[list[HexBytes], list[Arbitrage], list[ArbArgs]]:
     confirms = CONFIG["transaction"]["estimation_confirms"]
-
-    # time of the final transaction (perf_counter)
-    final_tx_time = block_time.start_time + CONFIG["transaction"]["final_tx"]
-
-    # creating slot for each transaction in one wave
-    tx_hashes = [None] * len(transactions[0])
-    all_arb_args = [None] * len(transactions[0])
-    remove_idxs = []
-
-    # calculating wave wait durations
-    wait_count = len(transactions) - 1
-    wave_duration = (final_tx_time - perf_counter()) / wait_count
+    tx_hashes, all_arb_args, arbs = [], [], []
 
     # executing transaction in each wave (increasing gas price)
-    for wave, wave_transactions in enumerate(transactions):
-        # FORCE REMOVED UNDERPRICED TRANSACTIONS
-        if wave == 0:
-            continue
-        # if wave:
-        #     # calculating wait time
-        #     target = final_tx_time - (wave_duration * (wait_count - wave))
-        #     wait_time = target - perf_counter()
-
-        #     # waiting for next transaction
-        #     if wait_time > 0:
-        #         sleep(wait_time)
-
+    for tx_params, (arb, *_) in zip(transactions, potential_arbs, strict=True):
         try:
-            # going through all arb transactions in single wave
-            for i, tx_params in enumerate(wave_transactions):
-                arb_args = decode_arb_args(tx_params["data"])
-                log.info(
-                    f"{datetime.now()}\n"
-                    f"ArbRouterV4{str_obj(arb_args, True)}\n"
-                    f"Transaction parameters: {str_obj(tx_params, True)}"
-                )
+            arb_args = decode_arb_args(tx_params["data"])
+            log.info(
+                f"{datetime.now()}\n"
+                f"ArbRouterV4{str_obj(arb_args, True)}\n"
+                f"Transaction parameters: {str_obj(tx_params, True)}"
+            )
 
-                # checking gas
-                gas_timer = measure_time("Gas estimetion time: {}")
-                profitables, nonprofitables, errors = 0, 0, 0
-                try:
-                    for gas in w3.batch_estimate_gas(tx_params):
-                        if isinstance(gas, ValueError):
-                            errors += 1
-                            if errors >= confirms:
-                                raise gas
-                            continue
+            # checking gas
+            gas_timer = measure_time("Gas estimetion time: {}")
+            profitables, nonprofitables, errors = 0, 0, 0
+            try:
+                for gas in w3.batch_estimate_gas(tx_params):
+                    if isinstance(gas, ContractLogicError) or isinstance(
+                        gas, ValueError
+                    ):
+                        errors += 1
+                        if errors >= confirms:
+                            raise gas
+                        continue
 
-                        if gas < 60_000:
-                            nonprofitables += 1
-                            if nonprofitables >= confirms:
-                                raise NotProfitable()
-                            continue
+                    if gas < 60_000:
+                        nonprofitables += 1
+                        if nonprofitables >= confirms:
+                            raise NotProfitable()
+                        continue
 
-                        profitables += 1
-                        if profitables >= confirms:
-                            if block_time() > CONFIG["transaction"]["final_tx"]:
-                                raise LateTransaction(block_time())
-                            break
+                    profitables += 1
+                    if profitables >= confirms:
+                        if block_time() > CONFIG["transaction"]["final_tx"]:
+                            raise LateTransaction(block_time())
+                        break
 
-                    if profitables < confirms:
-                        raise MixedEstimation(profitables, nonprofitables, errors)
+                if profitables < confirms:
+                    raise MixedEstimation(profitables, nonprofitables, errors)
 
-                    # if w3.estimator.eth.estimate_gas(tx_params) < 60_000:
-                    #     raise NotProfitable()
-                    # if block_time() > CONFIG["transaction"]["final_tx"]:
-                    #     raise LateTransaction(block_time())
-                except ValueError as error:
-                    log.info(gas_timer())
-                    log.error(error)
-                    w3.nonces[w3.account] -= 1
-                    remove_idxs.append(i)
-                    continue
-                except NotProfitable as error:
-                    log.info(gas_timer())
-                    log.warning(error)
-                    w3.nonces[w3.account] -= 1
-                    remove_idxs.append(i)
-                    continue
-                except LateTransaction as error:
-                    log.info(gas_timer())
-                    log.warning(error)
-                    w3.nonces[w3.account] -= 1
-                    remove_idxs.append(i)
-                    continue
-                except MixedEstimation as error:
-                    log.info(gas_timer())
-                    log.warning(error)
-                    w3.nonces[w3.account] -= 1
-                    remove_idxs.append(i)
-                    continue
-
-                # executing transaction on each node
-                tx_hash = w3.batch_transact(tx_params)
-
+            except (ContractLogicError, ValueError) as error:
                 log.info(gas_timer())
+                log.error(error)
+                w3.nonces[w3.account] -= 1
+                continue
 
-                tx_hashes[i] = tx_hash
-                all_arb_args[i] = arb_args
+            except (NotProfitable, LateTransaction, MixedEstimation) as error:
+                log.info(gas_timer())
+                log.warning(error)
+                w3.nonces[w3.account] -= 1
+                continue
+
+            # executing transaction on each node
+            tx_hash = w3.batch_transact(tx_params)
+
+            log.info(gas_timer())
+
+            tx_hashes.append(tx_hash)
+            all_arb_args.append(arb_args)
+            arbs.append(arb)
 
         except ValueError as error:
             # transaction is underpriced or mined
             log.error(error)
             break
 
-    # removing bad transactions
-    for i, rm_idx in enumerate(remove_idxs):
-        del tx_hashes[rm_idx - i]
-        del all_arb_args[rm_idx - i]
+    return tx_hashes, arbs, all_arb_args
 
-    return tx_hashes, all_arb_args
+
+# def format_transactions(
+#     w3: Web3,
+#     arbs_with_gas: list[tuple[Arbitrage, Decimal, Decimal]],
+#     pools: Pools,
+#     gas_params: GasParams,
+#     burners: list[BurnersData],
+# ) -> list[list[TxParams]]:
+#     account = w3.account
+#     gas_reductions = CONFIG["transaction"]["gas_reductions"]
+#     reduction_denominator = Decimal(CONFIG["transaction"]["reduction_denominator"])
+#     burners = deepcopy(burners)
+
+#     # creating empty array for each trancacion (gas reductions + final transaction)
+#     transactions = [[] for _ in range(gas_reductions + 1)]
+
+#     for arb, gas_usage, final_gas_price in arbs_with_gas:
+#         i = gas_reductions
+
+#         # formatting final transaction
+#         burner_addresses = get_burner_addresses(burners, arb.burners_count)
+#         arb_args = create_arb_args(arb, pools, burner_addresses)
+#         tx_params = create_tx_params(
+#             w3, arb_args, gas_params, final_gas_price, gas_usage
+#         )
+
+#         transactions[i].append(tx_params)
+#         i -= 1
+
+#         # formatting transactions with lower gas price
+#         for gas_price in reduce_gas(
+#             final_gas_price, gas_reductions, reduction_denominator
+#         ):
+#             # mutating arb to match lower gas
+#             recalculate_arb(arb, gas_usage, gas_price)
+
+#             # foramtting transaction
+#             arb_args = create_arb_args(arb, pools, burner_addresses)
+#             tx_params = create_tx_params(w3, arb_args, gas_params, gas_price, gas_usage)
+
+#             transactions[i].append(tx_params)
+#             i -= 1
+
+#         w3.nonces[account] += 1
+
+#     return transactions
+
+
+# def execute_transactions(
+#     w3: Web3,
+#     transactions: list[list[TxParams]],
+#     block_time: BlockTime,
+# ) -> tuple[list[HexBytes], list[ArbArgs]]:
+#     confirms = CONFIG["transaction"]["estimation_confirms"]
+
+#     # time of the final transaction (perf_counter)
+#     final_tx_time = block_time.start_time + CONFIG["transaction"]["final_tx"]
+
+#     # creating slot for each transaction in one wave
+#     tx_hashes = [None] * len(transactions[0])
+#     all_arb_args = [None] * len(transactions[0])
+#     remove_idxs = []
+
+#     # calculating wave wait durations
+#     wait_count = len(transactions) - 1
+#     wave_duration = (final_tx_time - perf_counter()) / wait_count
+
+#     # executing transaction in each wave (increasing gas price)
+#     for wave, wave_transactions in enumerate(transactions):
+#         # FORCE REMOVED UNDERPRICED TRANSACTIONS
+#         if wave == 0:
+#             continue
+#         # if wave:
+#         #     # calculating wait time
+#         #     target = final_tx_time - (wave_duration * (wait_count - wave))
+#         #     wait_time = target - perf_counter()
+
+#         #     # waiting for next transaction
+#         #     if wait_time > 0:
+#         #         sleep(wait_time)
+
+#         try:
+#             # going through all arb transactions in single wave
+#             for i, tx_params in enumerate(wave_transactions):
+#                 arb_args = decode_arb_args(tx_params["data"])
+#                 log.info(
+#                     f"{datetime.now()}\n"
+#                     f"ArbRouterV4{str_obj(arb_args, True)}\n"
+#                     f"Transaction parameters: {str_obj(tx_params, True)}"
+#                 )
+
+#                 # checking gas
+#                 gas_timer = measure_time("Gas estimetion time: {}")
+#                 profitables, nonprofitables, errors = 0, 0, 0
+#                 try:
+#                     for gas in w3.batch_estimate_gas(tx_params):
+#                         if isinstance(gas, ValueError):
+#                             errors += 1
+#                             if errors >= confirms:
+#                                 raise gas
+#                             continue
+
+#                         if gas < 60_000:
+#                             nonprofitables += 1
+#                             if nonprofitables >= confirms:
+#                                 raise NotProfitable()
+#                             continue
+
+#                         profitables += 1
+#                         if profitables >= confirms:
+#                             if block_time() > CONFIG["transaction"]["final_tx"]:
+#                                 raise LateTransaction(block_time())
+#                             break
+
+#                     if profitables < confirms:
+#                         raise MixedEstimation(profitables, nonprofitables, errors)
+
+#                     # if w3.estimator.eth.estimate_gas(tx_params) < 60_000:
+#                     #     raise NotProfitable()
+#                     # if block_time() > CONFIG["transaction"]["final_tx"]:
+#                     #     raise LateTransaction(block_time())
+#                 except ValueError as error:
+#                     log.info(gas_timer())
+#                     log.error(error)
+#                     w3.nonces[w3.account] -= 1
+#                     remove_idxs.append(i)
+#                     continue
+#                 except NotProfitable as error:
+#                     log.info(gas_timer())
+#                     log.warning(error)
+#                     w3.nonces[w3.account] -= 1
+#                     remove_idxs.append(i)
+#                     continue
+#                 except LateTransaction as error:
+#                     log.info(gas_timer())
+#                     log.warning(error)
+#                     w3.nonces[w3.account] -= 1
+#                     remove_idxs.append(i)
+#                     continue
+#                 except MixedEstimation as error:
+#                     log.info(gas_timer())
+#                     log.warning(error)
+#                     w3.nonces[w3.account] -= 1
+#                     remove_idxs.append(i)
+#                     continue
+
+#                 # executing transaction on each node
+#                 tx_hash = w3.batch_transact(tx_params)
+
+#                 log.info(gas_timer())
+
+#                 tx_hashes[i] = tx_hash
+#                 all_arb_args[i] = arb_args
+
+#         except ValueError as error:
+#             # transaction is underpriced or mined
+#             log.error(error)
+#             break
+
+#     # removing bad transactions
+#     for i, rm_idx in enumerate(remove_idxs):
+#         del tx_hashes[rm_idx - i]
+#         del all_arb_args[rm_idx - i]
+
+#     return tx_hashes, all_arb_args

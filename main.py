@@ -233,7 +233,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                     end_log = None
 
                     # tx_receipts = None
-                    tx_receipts, arb_args = arbitrage.exe_arbs(
+                    tx_receipts, arbs, arb_args = arbitrage.exe_arbs(
                         potential_arbs,
                         price.gas_params,
                         pools,
@@ -255,7 +255,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                         blockchain.remove_used_burners(burners, used_burners)
                         persistance.save_burners(burners)
 
-                        logger.log_executed_arbs(tx_receipts, arb_args, used_burners)
+                        logger.log_executed_arbs(tx_receipts, arbs, arb_args, used_burners)
 
                         blockchain.create_burners(burners, w3.account)
                         persistance.save_burners(burners)

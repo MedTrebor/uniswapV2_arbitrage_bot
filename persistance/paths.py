@@ -118,9 +118,8 @@ def load_pre_blacklist_paths() -> dict[tuple[str, ...], int]:
 
     return pre_blacklist
 
-def save_pre_blacklist_paths(
-    pre_blacklist_paths: dict[tuple[str, ...], int]
-) -> None:
+
+def save_pre_blacklist_paths(pre_blacklist_paths: dict[tuple[str, ...], int]) -> None:
     """Save ``pre_blacklist_paths`` to storage.
 
     Args:
@@ -139,6 +138,45 @@ def save_pre_blacklist_paths(
         with open("data/pre_blacklist_paths.json", "w") as file:
             json.dump(str_pre_blacklist, file)
         raise error from None
+
+
+def load_noprofit_paths() -> dict[tuple[str, ...], int]:
+    """Load nonprofitable paths from storage.
+
+    Returns:
+        dict[tuple[str, ...], int]: Nonprofitable paths.
+    """
+    try:
+        with open("data/noprofit_paths.json") as file:
+            raw_paths = json.load(file)
+    except FileNotFoundError:
+        return {}
+
+    noprofit_paths = {}
+    for path, count in raw_paths.items():
+        noprofit_paths[tuple(path.split("-"))] = count
+
+    return noprofit_paths
+
+
+def save_noprofit_paths(noprfit_paths: dict[tuple[str, ...], int]) -> None:
+    """Save nonprofitable paths to storage.
+
+    Args:
+        noprfit_paths (dict[tuple[str, ...], int]): Nonprofitable paths.
+    """
+    raw_paths = {}
+    for path, count in noprfit_paths.items():
+        raw_paths["-".join(path)] = count
+    try:
+        with open("data/noprofit_paths.json", "w") as file:
+            json.dump(raw_paths, file)
+    except KeyboardInterrupt as error:
+        with open("data/noprofit_paths.json", "w") as file:
+            json.dump(raw_paths, file)
+
+        raise error from None
+
 
 # def save_pre_blacklist_paths(
 #     pre_blacklist_paths: dict[tuple[str, ...], dict[str, int]]
