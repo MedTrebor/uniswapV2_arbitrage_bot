@@ -1,6 +1,7 @@
+import sys
 from array import array
 from copy import copy
-import sys
+from ctypes import c_ulonglong
 from decimal import Decimal
 from math import ceil
 from multiprocessing import Manager
@@ -8,16 +9,15 @@ from multiprocessing.managers import SyncManager, ValueProxy
 from multiprocessing.pool import Pool
 from multiprocessing.process import current_process
 from multiprocessing.synchronize import Lock
-from threading import current_thread
 from random import randrange
-from ctypes import c_ulonglong
+from threading import current_thread
 
 import arbitrage
 import path
-from utils import CONFIG, Logger, str_obj, measure_time
+from path.blacklist import remove_from_paths
+from utils import CONFIG, Logger, measure_time, str_obj
 from utils._types import Pools
 from utils.datastructures import Arbitrage
-from path.blacklist import remove_from_paths
 
 ID: int = 0
 POOLS: dict[str, Pools] = {}
@@ -172,7 +172,7 @@ def search_arbs(
     low_gas_price: Decimal,
     mid_gas_price: Decimal,
     max_gas_price: Decimal,
-    eth_price: Decimal,
+    weth_prices: dict[str, Decimal],
     process_pool: Pool,
     network: str,
 ) -> list[Arbitrage]:
@@ -193,7 +193,7 @@ def search_arbs(
                 low_gas_price,
                 mid_gas_price,
                 max_gas_price,
-                eth_price,
+                weth_prices,
                 network,
                 lock,
                 last_idx,
@@ -201,7 +201,6 @@ def search_arbs(
             for _ in range(workers)
         ],
     ):
-
         if ids[id]:
             log.error(f"ID {id} already used.")
         ids[id] = True
@@ -219,7 +218,7 @@ def _search_arbs(
     low_gas_price: Decimal,
     mid_gas_price: Decimal,
     max_gas_price: Decimal,
-    eth_price: Decimal,
+    weth_prices: dict[str, Decimal],
     network: str,
     lock: Lock,
     last_idx: ValueProxy,
@@ -247,7 +246,7 @@ def _search_arbs(
                 low_gas_price,
                 mid_gas_price,
                 max_gas_price,
-                eth_price,
+                weth_prices,
             ),
             ID,
         )

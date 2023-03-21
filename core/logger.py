@@ -5,9 +5,8 @@ from eth_typing import ChecksumAddress
 
 import persistance
 from arbitrage.calculator import calc_gas_cost
-from blockchain import Web3, multicall
+from blockchain import Web3, get_weth_price, multicall
 from network import prices
-from network.prices import wei_usd_price
 from utils import CONFIG, Logger, str_num
 from utils._types import ArbArgs
 from utils.datastructures import Arbitrage
@@ -126,7 +125,7 @@ def get_tx_log(
     path = get_path(transfer_logs)
     token_in, token_out = path[0], path[-1]
 
-    wei_price = wei_usd_price(token_out)
+    wei_price = get_weth_price(token_out)
     gas_cost = calc_gas_cost(gas_price, gas_used, wei_price)
 
     bruto_profit = amount_out - amount_in

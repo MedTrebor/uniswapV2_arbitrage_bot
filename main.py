@@ -9,8 +9,8 @@ import arbitrage
 import blockchain
 import persistance
 from core import PricePollInterval, loader, logger, processes, whitelist, sync
-from network import prices
 from utils import CONFIG, BlockTime, Logger, TimePassed, WaitPrevious, measure_time
+
 
 log = Logger(__name__)
 
@@ -22,7 +22,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
     w3 = blockchain.Web3(new_singleton=True)
     # sync.start()
-    price = PricePollInterval(network, new_singleton=True)
+    price = PricePollInterval(new_singleton=True)
 
     thread_executor = ThreadPoolExecutor(thread_name_prefix="Thread")
 
@@ -171,7 +171,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                 mid_gas_price,
                 max_gas_price,
             ) = price.gas_prices
-            eth_price = prices.eth_price
+            weth_prices = blockchain.get_weth_prices()
 
             start = perf_counter()
             raw_arbitrages = processes.search_arbs(
@@ -181,7 +181,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                 low_gas_price,
                 mid_gas_price,
                 max_gas_price,
-                eth_price,
+                weth_prices,
                 process_pool,
                 network,
             )
@@ -255,7 +255,9 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                         blockchain.remove_used_burners(burners, used_burners)
                         persistance.save_burners(burners)
 
-                        logger.log_executed_arbs(tx_receipts, arbs, arb_args, used_burners)
+                        logger.log_executed_arbs(
+                            tx_receipts, arbs, arb_args, used_burners
+                        )
 
                         blockchain.create_burners(burners, w3.account)
                         persistance.save_burners(burners)

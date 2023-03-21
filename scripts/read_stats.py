@@ -1,14 +1,16 @@
 from rich import print
 from rich.pretty import pprint
-from network import prices
 from utils import CONFIG
 from core.logger import str_num
 from utils._types import BalanceStats
+from blockchain import update_prices, get_weth_price
+from core.price import create_price_pools
 
 import persistance
 
 
 def main():
+    update_prices(create_price_pools())
     all_balance_stats = persistance.load_balance_stats()
     read_tx_stats()
 
@@ -52,8 +54,7 @@ def read_balance(balance_stats: BalanceStats):
 
 
 def read_tx_stats():
-    prices.get_gas_price()
-    bnb_price = float(prices.eth_price)
+    bnb_price = float(get_weth_price("0x55d398326f99059fF775485246999027B3197955"))
 
     tx_stats = persistance.load_tx_stats()
     dec_profit = tx_stats["profit"] / 1e18

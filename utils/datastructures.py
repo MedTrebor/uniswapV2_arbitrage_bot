@@ -50,6 +50,10 @@ class Arbitrage:
         for i in range(1, len(self.path), 2):
             yield self.path[i]
 
+    @property
+    def token_in(self) -> str | ChecksumAddress:
+        return self.path[0]
+
     def __lt__(self, other: object) -> bool:
         return self.gas_price < other.gas_price
 

@@ -4,9 +4,7 @@ from typing import Sequence
 
 from eth_typing import ChecksumAddress
 
-from blockchain import Web3
-from network import prices
-from network.prices import wei_usd_price
+from blockchain import Web3, get_weth_price
 from utils import CONFIG, Logger, measure_time, str_num
 from utils._types import (
     BatchCheckerArgs,
@@ -178,7 +176,6 @@ def handle_successful(
     low_multiplier = Decimal(CONFIG["price"]["low"]["ratio"])
     mid_multiplier = Decimal(CONFIG["price"]["mid"]["ratio"])
     high_multipler = Decimal(CONFIG["price"]["high"]["ratio"])
-    eth_price = prices.eth_price * Decimal(CONFIG["price"]["correction"])
     min_profit = Decimal(CONFIG["transaction"]["min_profit"])
     burn_enabled = CONFIG["burner"]["enabled"]
     burn_cost = Decimal(36_930) * Decimal(CONFIG["burner"]["gas_price"])
@@ -197,7 +194,7 @@ def handle_successful(
 
         # getting gas cost and estimated gas usage
         gas_est = Decimal(batch_result[2] + 23_640)
-        wei_price = wei_usd_price(arb.path[0], eth_price)
+        wei_price = get_weth_price(arb.token_in)
 
         # getting burners count and gas usage after burning
         if burn_enabled:

@@ -4,7 +4,6 @@ from math import ceil
 from multiprocessing.pool import Pool as ProcessPool
 from time import perf_counter
 
-from network import wei_usd_price
 from utils import CONFIG, MIN_GAS_LIMITS, Logger
 from utils._types import GasParams, Pools
 from utils.datastructures import Arbitrage
@@ -26,7 +25,7 @@ def search_for_arbitrages(
     low_gas_price: Decimal,
     mid_gas_price: Decimal,
     max_gas_price: Decimal,
-    eth_price: Decimal
+    weth_prices: dict[str, Decimal],
     # process_pool: ProcessPool,
 ) -> list[Arbitrage]:
     """Check if there are arbitrage oportunities for ``paths``.
@@ -38,6 +37,7 @@ def search_for_arbitrages(
         low_gas_price (Decimal): Low gas price.
         mid_gas_price (Decimal): Medium gas price.
         max_gas_price (Decimal): Maximum gas price.
+        weth_prices (dict[str, Decimal]): Token to price mapping.
         process_pool (ProcessPool): Process pool.
 
     Returns:
@@ -62,7 +62,7 @@ def search_for_arbitrages(
     # calculate and get profitable paths
     start = perf_counter()
     # eth_price = prices.eth_price * Decimal(CONFIG["price"]["correction"])
-    eth_price = eth_price * Decimal(CONFIG["price"]["correction"])
+    # eth_price = eth_price * Decimal(CONFIG["price"]["correction"])
 
     potential_arbs = calculate_profitability(
         pools,
@@ -71,7 +71,7 @@ def search_for_arbitrages(
         low_gas_price,
         mid_gas_price,
         max_gas_price,
-        eth_price,
+        weth_prices,
     )
 
     #########################
@@ -150,7 +150,7 @@ def calculate_profitability(
     low_gas_price: Decimal,
     mid_gas_price: Decimal,
     max_gas_price: Decimal,
-    eth_price: Decimal,
+    weth_prices: dict[str, Decimal],
 ) -> list[Arbitrage]:
     """Make calculations on ``paths`` and filter out only potentially
     profitable paths.
@@ -162,7 +162,7 @@ def calculate_profitability(
         low_gas_price (Decimal): Low gas price.
         mid_gas_price (Decimal): Medium gas price.
         max_gas_price (Decimal): Maximum gas price.
-        eth_price (Decimal): Price of ETH.
+        weth_prices (dict[str, Decimal]): Price of ETH.
 
     Raises:
         InvalidOperation: If `Decimal` encountered error.
@@ -220,7 +220,7 @@ def calculate_profitability(
 
             # getting gas limit and wei price
             gas_limit: Decimal = MIN_GAS_LIMITS[len(path)]
-            wei_price = wei_usd_price(path[0], eth_price)
+            wei_price = weth_prices[path[0]]
 
             # getting burners count and gas usage after burning
             if burn_enabled:

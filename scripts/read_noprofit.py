@@ -11,22 +11,22 @@ def main():
 
     noprofit_tokens = {}
     for path, count in list_paths:
-        token_path = extract_tokens(path)
-        if token_path in noprofit_paths:
-            print(token_path)
-            noprofit_tokens[token_path] += count
-        else:
-            noprofit_tokens[token_path] = count
+        tokens = extract_tokens(path)
+        for token in tokens:
+            if token in noprofit_tokens:
+                noprofit_tokens[token] += count
+            else:
+                noprofit_tokens[token] = count
 
     print(noprofit_tokens)
 
 
-def extract_tokens(path: tuple[str, ...]) -> tuple[str, ...]:
+def extract_tokens(path: tuple[str, ...]) -> list[str]:
     tokens = []
     for i in range(2, len(path) - 1, 2):
         tokens.append(path[i])
 
-    return tuple(tokens)
+    return tokens
 
 
 if __name__ == "__main__":

@@ -6,8 +6,7 @@ from typing import Iterator
 
 from hexbytes import HexBytes
 
-from blockchain import Web3
-from network.prices import wei_usd_price
+from blockchain import Web3, get_weth_price
 from utils import CONFIG, BlockTime, Logger, measure_time, str_obj
 from utils._types import ArbArgs, BurnersData, GasParams, Pools, TxParams
 from utils.datastructures import Arbitrage
@@ -85,7 +84,7 @@ def reduce_gas(
 
 
 def recalculate_arb(arb: Arbitrage, gas_usage: Decimal, gas_price: Decimal):
-    wei_price = wei_usd_price(arb.path[0])
+    wei_price = get_weth_price(arb.token_in)
     gas_cost = calc_gas_cost(gas_price, gas_usage, wei_price)
     neto_profit = arb.bruto_profit - gas_cost - arb.burners_cost
     wei_profit = neto_profit // wei_price

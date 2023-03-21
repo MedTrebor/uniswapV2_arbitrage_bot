@@ -1,12 +1,10 @@
-from copy import deepcopy
 from decimal import Decimal
 from threading import Lock, Thread
 from typing import Optional
 
-import persistance
-from blockchain import prices
+from network.prices import get_gas_params
 from utils import CONFIG, Logger, WaitPrevious, singleton
-from utils._types import GasParams, Pools
+from utils._types import GasParams
 
 log = Logger(__name__)
 
@@ -22,6 +20,7 @@ class PricePollInterval:
     Singleton object.
 
     Args:
+        network (str): Blockchain network name.
         poll_interval (int | float, optional): Poll interval.
             Defaults to `CONFIG['poll']['main']`
         start (bool): Start polling thread.
@@ -39,8 +38,8 @@ class PricePollInterval:
         "_max_gas_price",
         "_lock",
         "_low_gas_price",
+        "_network",
         "_poll_interval",
-        "_price_pools",
         "_running",
         "_server_poll",
         "_thread",
@@ -48,12 +47,13 @@ class PricePollInterval:
 
     def __init__(
         self,
+        network: str,
         poll_interval: int | float = CONFIG["poll"]["main"],
         start: bool = False,
     ) -> None:
-        self._price_pools = create_price_pools()
         self._poll_interval = WaitPrevious(poll_interval)
         self._lock = Lock()
+        self._network = network
         self._running = False
         self._error: Optional[Exception] = PricePollNotRunning()
         if start:
@@ -92,6 +92,7 @@ class PricePollInterval:
     def gas_params(self) -> GasParams:
         """`gasPrice` or `maxFeePerGas` and `maxPriorityFeePerGas`."""
         with self._lock:
+
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
@@ -102,6 +103,7 @@ class PricePollInterval:
     def min_gas_price(self) -> Decimal:
         """Minimum needed to pay for gas."""
         with self._lock:
+
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
@@ -112,6 +114,7 @@ class PricePollInterval:
     def low_gas_price(self) -> Decimal:
         """Low gas price."""
         with self._lock:
+
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
@@ -122,6 +125,7 @@ class PricePollInterval:
     def mid_gas_price(self) -> Decimal:
         """Medium gas price."""
         with self._lock:
+
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
@@ -132,6 +136,7 @@ class PricePollInterval:
     def max_gas_price(self) -> Decimal:
         """Maximum to pay for gas."""
         with self._lock:
+
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
@@ -142,6 +147,7 @@ class PricePollInterval:
     def gas_prices(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
         """Minumum, low, medium and maximum gas prices."""
         with self._lock:
+
             if self._error:
                 error, self._error = self._error, PricePollNotRunning()
                 raise error from None
@@ -159,37 +165,14 @@ class PricePollInterval:
         """
         try:
             self._poll_interval()
-            prices.update_prices(self._price_pools)
 
+            gas_params = get_gas_params(self._network)
             with self._lock:
-                gas_price = prices.get_gas_price()
-                self._min_gas_price = round(
-                    gas_price * Decimal(CONFIG["price"]["min_gas_multiplier"]), 0
-                )
-                self._low_gas_price = round(
-                    gas_price * Decimal(CONFIG["price"]["low"]["multiplier"]), 0
-                )
-                self._mid_gas_price = round(
-                    gas_price * Decimal(CONFIG["price"]["mid"]["multiplier"]), 0
-                )
-                self._max_gas_price = round(
-                    gas_price * Decimal(CONFIG["price"]["max_gas_multiplier"]), 0
-                )
 
-                self._gas_params = {"gasPrice": int(self._min_gas_price)}
-
-                # remove error on first run
-                self._error = None
-
-            while self._running:
-                self._poll_interval()
-                prices.update_prices(self._price_pools)
-
-                with self._lock:
-                    gas_price = prices.get_gas_price()
+                try:
+                    gas_price = Decimal(gas_params["gasPrice"])
                     self._min_gas_price = round(
-                        gas_price * Decimal(CONFIG["price"]["min_gas_multiplier"]),
-                        0,
+                        gas_price * Decimal(CONFIG["price"]["min_gas_multiplier"]), 0
                     )
                     self._low_gas_price = round(
                         gas_price * Decimal(CONFIG["price"]["low"]["multiplier"]), 0
@@ -198,11 +181,48 @@ class PricePollInterval:
                         gas_price * Decimal(CONFIG["price"]["mid"]["multiplier"]), 0
                     )
                     self._max_gas_price = round(
-                        gas_price * Decimal(CONFIG["price"]["max_gas_multiplier"]),
-                        0,
+                        gas_price * Decimal(CONFIG["price"]["max_gas_multiplier"]), 0
                     )
 
                     self._gas_params = {"gasPrice": int(self._min_gas_price)}
+
+                except KeyError:
+                    #############################
+                    ### IMPLEMENT DYNAMIC FEE ###
+                    #############################
+                    raise NotImplementedError("Dynamic fee not implemented") from None
+
+                # remove error on first run
+                self._error = None
+
+            while self._running:
+                self._poll_interval()
+
+                gas_params = get_gas_params(self._network)
+                with self._lock:
+                    try:
+                        gas_price = Decimal(gas_params["gasPrice"])
+                        self._min_gas_price = round(
+                            gas_price * Decimal(CONFIG["price"]["min_gas_multiplier"]),
+                            0,
+                        )
+                        self._low_gas_price = round(
+                            gas_price * Decimal(CONFIG["price"]["low"]["multiplier"]), 0
+                        )
+                        self._mid_gas_price = round(
+                            gas_price * Decimal(CONFIG["price"]["mid"]["multiplier"]), 0
+                        )
+                        self._max_gas_price = round(
+                            gas_price * Decimal(CONFIG["price"]["max_gas_multiplier"]),
+                            0,
+                        )
+
+                        self._gas_params = {"gasPrice": int(self._min_gas_price)}
+
+                    except KeyError:
+                        raise NotImplementedError(
+                            "Dynamic fee not implemented"
+                        ) from None
 
         except Exception as error:
             with self._lock:
@@ -212,29 +232,3 @@ class PricePollInterval:
 
     def __del__(self) -> None:
         self.kill()
-
-
-def create_price_pools() -> Pools:
-    all_pools = persistance.load_pools()
-
-    tokens = set(CONFIG["paths"]["tokens"])
-    weths = set(CONFIG["weths"])
-    tokens.difference_update(weths)
-
-    price_pools = {}
-
-    for pool_address, pool in all_pools.items():
-        # search token
-        has_weth = has_regular = False
-        for token_address, _ in zip(pool.keys(), range(2)):
-            if token_address in tokens:
-                has_regular = True
-                continue
-            if token_address in weths:
-                has_weth = True
-
-        # add to price pools
-        if has_regular and has_weth:
-            price_pools[pool_address] = deepcopy(pool)
-
-    return price_pools

@@ -28,7 +28,7 @@ class MulticallGasError(BlockchainError):
         self,
         results: list[bytes] | list[tuple[bool, bytes]] | None = None,
         error_idxs: list[int] | None = None,
-        *args: object
+        *args: object,
     ) -> None:
         self.results = results
         self.error_idxs = error_idxs
@@ -54,3 +54,26 @@ class BurnersCreationError(BlockchainError):
         self.factory = factory
         self.exe_acc = exe_acc
         super().__init__(*args)
+
+
+class PriceNotFound(BlockchainError):
+    """Raised when price for provided tokens is not found.
+
+    Args:
+        base_token (ChecksumAddress): Base token address
+        quote_token (ChecksumAddress): Quite token address
+
+    Attributes:
+        base_token (ChecksumAddress): Base token address
+        quote_token (ChecksumAddress): Quite token address
+    """
+
+    def __init__(
+        self, base_token: ChecksumAddress, quote_token: ChecksumAddress, *args: object
+    ) -> None:
+        super().__init__(*args)
+        self.base_token = base_token
+        self.quote_token = quote_token
+
+    def __str__(self) -> str:
+        return f"Price not found for {self.base_token}/{self.quote_token}"

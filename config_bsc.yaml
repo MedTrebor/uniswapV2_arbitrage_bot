@@ -12,17 +12,19 @@ transaction:
   min_profit: 0
   gas_reductions: 1
   reduction_denominator: 1.1
-  final_tx: 1.25
+  final_tx: 1.2
   estimation_confirms: 2
 
 price:
+  # not implemented #
   url: !ENV https://api.bscscan.com/api?module=gastracker&action=gasoracle&apikey=${BSCSCAN_AUTH}
   correction: 1.01
+  ###################
 
   # gas price multipliers
   low:
     multiplier: 2.01
-    ratio: 0.94
+    ratio: 0.97
   # skipping mid and high
   mid:
     multiplier: 3

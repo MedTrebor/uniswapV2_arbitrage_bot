@@ -114,11 +114,12 @@ def call(call_parameters: list[tuple[str, str]], retries: int = 0) -> list[bytes
         first_idx = last_idx
         last_idx += max_size
 
-    if len(splitted_params) == 1 or len(w3.nodes) == 1:
-        chunked_results, retry_params, retry_idxs = _call_one(splitted_params, w3)
+    # if len(splitted_params) == 1 or len(w3.nodes) == 1:
+    #     chunked_results, retry_params, retry_idxs = _call_one(splitted_params, w3)
 
-    else:
-        chunked_results, retry_params, retry_idxs = _call_many(splitted_params, w3)
+    # else:
+    #     chunked_results, retry_params, retry_idxs = _call_many(splitted_params, w3)
+    chunked_results, retry_params, retry_idxs = _call_one(splitted_params, w3)
 
     # retrying
     if retry_idxs:
@@ -205,7 +206,6 @@ def _call_many(
             total=len(futures),
             transient=True,
         ):
-
             try:
                 future_result = future.result()
             except ValueError as error:
@@ -281,3 +281,12 @@ def check_success(
         list[bool]: List of success results.
     """
     return [res[0] for res in try_aggregate(call_parameters, tx_params)]
+
+
+def fast_call(
+    call_params: list[tuple[str, str | bytes]], tx_params: TxParams | None = None
+) -> list[bytes]:
+    # used 'main_node' for fast check #
+    if not tx_params:
+        return Web3().multicalls[1].functions.aggregate(call_params).call()[1]
+    return Web3().multicalls[1].functions.aggregate(call_params).call(tx_params)[1]

@@ -3,14 +3,18 @@ from datetime import datetime
 from rich import print
 
 import persistance
-from blockchain import Web3, multicall
-from network import prices
+from blockchain import Web3, get_weth_price, multicall, update_prices, prices
+from core.price import create_price_pools
 from utils import CONFIG
 from web3.contract.contract import Contract
+from rich.traceback import install
+
+install(extra_lines=6, show_locals=True)
 
 
 def main():
     w3 = Web3()
+    update_prices(create_price_pools())
     all_stats = persistance.load_balance_stats()
 
     token_abi = persistance.get_ERC20_abi()
@@ -44,7 +48,7 @@ def get_tokens_balance(tokens: list[Contract]) -> dict[str, int]:
     symbols = [multicall.decode(enc, ["string"])[0] for enc in encoded[:half]]
     balances = [multicall.decode(enc, ["uint256"])[0] for enc in encoded[half:]]
 
-    wei_prices = [float(prices.wei_usd_price(t.address)) for t in tokens]
+    wei_prices = [float(get_weth_price(t.address)) for t in tokens]
 
     tokens_info = []
     for symbol, balance, wei_price in zip(symbols, balances, wei_prices, strict=True):
@@ -74,8 +78,7 @@ def get_tokens_balance(tokens: list[Contract]) -> dict[str, int]:
 
 
 def get_bnb_price() -> float:
-    prices.get_gas_price()
-    return float(prices.eth_price)
+    return float(get_weth_price("0x55d398326f99059fF775485246999027B3197955"))
 
 
 def get_burners_count() -> int:
