@@ -1,3 +1,4 @@
+from datetime import timedelta
 from rich import print
 from rich.pretty import pprint
 from utils import CONFIG
@@ -57,20 +58,30 @@ def read_tx_stats():
     bnb_price = float(get_weth_price("0x55d398326f99059fF775485246999027B3197955"))
 
     tx_stats = persistance.load_tx_stats()
-    dec_profit = tx_stats["profit"] / 1e18
-    bnb_profit = str_num(dec_profit)
-    usd_profit = str_num(dec_profit * bnb_price)
+    uptime = timedelta(seconds=tx_stats["uptime"])
+
+    bnb_profit = str_num(tx_stats["bnb_profit"] / 1e18)
+    usd_profit = str_num(tx_stats["usd_profit"] / 1e18)
+    total_bnb_profit = str_num(
+        (tx_stats["bnb_profit"] + tx_stats["usd_profit"] // bnb_price) / 1e18
+    )
+    total_usd_profit = str_num(
+        (tx_stats["usd_profit"] + int(tx_stats["bnb_profit"] * bnb_price)) / 1e18
+    )
 
     style = "[default not b]"
 
     print(
         "\n"
+        f" [b]UPTIME[/]:             {style}{uptime}[/]\n"
         f" [b]TOTAL TRANSACTIONS[/]: {style}{tx_stats['total']:,}[/]\n"
         f" [b]SUCCESS COUNT[/]:      {style}{tx_stats['success']:,}[/]\n"
         f" [b]FAIL COUNT[/]:         {style}{tx_stats['fail']:,}[/]\n"
         f" [b]SUCCESS RATE[/]:       {style}{tx_stats['success_rate']:.2%}[/]\n"
         f" [b]BNB PROFIT[/]:         {style}{bnb_profit} BNB\n"
         f" [b]USD PROFIT[/]:         {style}{usd_profit} USD\n"
+        f" [b]TOTAL BNB PROFIT[/]:   {style}{total_bnb_profit} BNB\n"
+        f" [b]TOTAL USD PROFIT[/]:   {style}{total_usd_profit} USD\n"
         f" [b]BNB PRICE[/]:          {style}{bnb_price:,.2f}\n"
     )
 

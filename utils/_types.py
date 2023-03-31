@@ -364,12 +364,22 @@ TxTrace = TypedDict(
 )
 
 
+# class TxStats(TypedDict):
+#     total: int
+#     success: int
+#     fail: int
+#     success_rate: int | float
+#     profit: int | float
+
+
 class TxStats(TypedDict):
+    uptime: int
     total: int
     success: int
     fail: int
     success_rate: int | float
-    profit: int | float
+    bnb_profit: int
+    usd_profit: int
 
 
 class TokenBalance(TypedDict):

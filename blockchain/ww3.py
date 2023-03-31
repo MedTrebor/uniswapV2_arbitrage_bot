@@ -108,7 +108,10 @@ class Web3:
         self.eth = self.main_node.eth
         self.account = create_account(conf["blockchain"]["account"], self.nodes)
         self.__node_idx = node_idx(1, conf["poll"]["sync_node"])
-        self.factories = create_factories(conf["factories"], self.nodes)
+        ################################# PATCH #################################
+        ######### put factory to `self.main_node` to get local ipc node #########
+        self.factories = create_factories(conf["factories"], [self.main_node])  #
+        #########################################################################
         self.multicalls = create_multicalls(conf["multicall"]["address"], self.nodes)
         ############################ PATCH ############################
         # put batch checker to 'self.main_mode' to get local ipc node #
@@ -417,7 +420,8 @@ class Web3:
     @property
     def factory(self) -> dict[ChecksumAddress, Contract]:
         """Get next address to `Factory` mapping while respecting poll interval."""
-        return self.factories[self.node_idx]
+        # patched to get main_node factory
+        return self.factories[0]
 
     @property
     def batch_checker(self) -> Contract:

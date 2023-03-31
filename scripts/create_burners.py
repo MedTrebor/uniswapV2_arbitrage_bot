@@ -12,19 +12,20 @@ from web3.exceptions import TimeExhausted
 
 install(extra_lines=6, show_locals=True)
 
-COUNT = 4
+COUNT = 5
 GAS_PRICE = int(1e9) + 1
+SALT = 0
 
 
 def main():
-    global COUNT
+    global COUNT, SALT
     w3 = Web3()
 
     acc = w3.account
     nonce = w3.nonce(acc)
 
     burners = persistance.load_burners()
-    salt = burners[-1]["salt"] + 1
+    salt = SALT
 
     for i in range(1, COUNT + 1):
         print(f"[b u]CREATION {i}/{COUNT}\n")

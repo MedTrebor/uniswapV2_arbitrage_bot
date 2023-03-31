@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from time import time
 
 from eth_typing import ChecksumAddress
 
@@ -7,7 +8,7 @@ import persistance
 from arbitrage.calculator import calc_gas_cost
 from blockchain import Web3, get_weth_price, multicall
 from network import prices
-from utils import CONFIG, Logger, str_num
+from utils import CONFIG, Logger, str_num, uptime
 from utils._types import ArbArgs
 from utils.datastructures import Arbitrage
 from web3.datastructures import AttributeDict
@@ -77,6 +78,7 @@ def get_tx_log(
 
     str_gas_price = str_num(gas_price / Decimal(1e9))
     str_gas_used = f"{gas_used:,}"
+    str_path = symbolize_path(arb.path)
 
     # revert and no profit case
     if status == "revert" or status == "no profit":
@@ -84,16 +86,15 @@ def get_tx_log(
         loss = gas_price * gas_used
         if status == "no profit":
             loss += burn_cost
-        save_tx_stats(-loss)
+        save_tx_stats(False, -loss, Decimal(0))
 
         # updating nonprofitable paths
-        noprofit_count = noprofit_paths.get(arb.path, 0)
+        noprofit_count = noprofit_paths.get(arb.token_path, 0)
         noprofit_count += 1
-        noprofit_paths[arb.path] = noprofit_count
+        noprofit_paths[arb.token_path] = noprofit_count
         persistance.save_noprofit_paths(noprofit_paths)
 
         str_loss = str_num(loss / Decimal(1e18))
-        str_path = symbolize_path([token for token in arb.tokens()])
         str_noprofit_count = str_num(noprofit_count)
 
         log_str = f"[b]PATH[/]: {str_path}\n"
@@ -105,11 +106,11 @@ def get_tx_log(
         return log_str
 
     # removing path from nonprofitable paths
-    if arb.path in noprofit_paths:
+    if arb.token_path in noprofit_paths:
         log.info(
-            f"Path profitable after {noprofit_paths[arb.path]:,} nonprofitable transactions."
+            f"Path profitable after {noprofit_paths[arb.token_path]:,} nonprofitable transactions."
         )
-        del noprofit_paths[arb.path]
+        noprofit_paths[arb.token_path] -= 1
         persistance.save_noprofit_paths(noprofit_paths)
 
     # success case
@@ -122,19 +123,24 @@ def get_tx_log(
     )
     amount_in = Decimal(arb_args["amount_in"])
     amount_out = get_amount_out(transfer_logs)
-    path = get_path(transfer_logs)
-    token_in, token_out = path[0], path[-1]
+    token_in, token_out = arb.path[0], arb.path[-1]
 
     wei_price = get_weth_price(token_out)
     gas_cost = calc_gas_cost(gas_price, gas_used, wei_price)
 
     bruto_profit = amount_out - amount_in
-    burners_cost = burn_cost * arb_args["burners_len"]
+    wei_burners_cost = burn_cost * arb_args["burners_len"]
+    burners_cost = round(wei_burners_cost * wei_price, 0)
     neto_profit = bruto_profit - gas_cost - burners_cost
 
-    # saving balancer stats
-    wei_profit = neto_profit // wei_price
-    save_tx_stats(wei_profit)
+    # saving transaction stats
+    if token_in in CONFIG["weths"]:
+        bnb_profit = neto_profit
+        usd_profit = Decimal(0)
+    else:
+        bnb_profit = -(gas_price * gas_used + wei_burners_cost)
+        usd_profit = bruto_profit
+    save_tx_stats(True, bnb_profit, usd_profit)
 
     # getting decimals denominator
     try:
@@ -152,7 +158,7 @@ def get_tx_log(
     # creating string representations
     str_symbol_in = f"[default not b]{SYMBOLS[token_in]}[/]"
     str_symbol_out = f"[default not b]{SYMBOLS[token_out]}[/]"
-    str_path = symbolize_path(path)
+    str_path = symbolize_path(arb.path)
     str_amount_in = str_num(dec_amount_in)
     str_amount_out = str_num(dec_amount_out)
     str_bruto_profit = str_num(dec_bruto_profit)
@@ -220,32 +226,54 @@ def symbolize_path(path: list[ChecksumAddress]) -> str:
     encoded_symbols = multicall.call(multicall_args)
     symbols = [multicall.decode(sym, ["string"])[0] for sym in encoded_symbols]
 
-    sym_path = []
-    for address, symbol in zip(path, symbols, strict=True):
+    sym_path = ""
+    for i, (address, symbol) in enumerate(zip(path, symbols, strict=True)):
+        if i % 2 == 0:
+            if i:
+                sym_path += " -> "
+            style = "[magenta b]"
+        else:
+            style = "[default]"
+            sym_path += " - "
+
         try:
-            token = f"[magenta b]{SYMBOLS[address]}[/]"
+            sym_path += f"{style}{SYMBOLS[address]}[/]"
         except KeyError:
-            token = f"[magenta b]{symbol}[/]"
+            sym_path += f"{style}{symbol}[/]"
 
-        sym_path.append(token)
-
-    return " -> ".join(sym_path)
+    return sym_path
 
 
-def save_tx_stats(wei_profit: Decimal) -> None:
+def save_tx_stats(is_success: bool, bnb_profit: Decimal, usd_profit: Decimal) -> None:
     tx_stats = persistance.load_tx_stats()
 
+    tx_stats["uptime"] = uptime.total()
     tx_stats["total"] += 1
-    if wei_profit > 0:
+    if is_success:
         tx_stats["success"] += 1
     else:
         tx_stats["fail"] += 1
-    tx_stats["success_rate"] = tx_stats["success"] / (
-        tx_stats["success"] + tx_stats["fail"]
-    )
-    tx_stats["profit"] += int(wei_profit)
+    tx_stats["success_rate"] = tx_stats["success"] / tx_stats["total"]
+    tx_stats["bnb_profit"] += int(bnb_profit)
+    tx_stats["usd_profit"] += int(usd_profit)
 
     persistance.save_tx_stats(tx_stats)
+
+
+# def save_tx_stats(wei_profit: Decimal) -> None:
+#     tx_stats = persistance.load_tx_stats()
+
+#     tx_stats["total"] += 1
+#     if wei_profit > 0:
+#         tx_stats["success"] += 1
+#     else:
+#         tx_stats["fail"] += 1
+#     tx_stats["success_rate"] = tx_stats["success"] / (
+#         tx_stats["success"] + tx_stats["fail"]
+#     )
+#     tx_stats["profit"] += int(wei_profit)
+
+#     persistance.save_tx_stats(tx_stats)
 
 
 def log_potential_arbs(potential_arbs: list[tuple[Arbitrage, Decimal, Decimal]]):

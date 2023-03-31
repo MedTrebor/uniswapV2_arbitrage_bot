@@ -5,13 +5,17 @@ from threading import Lock
 from eth_typing import ChecksumAddress
 from rich import print
 
-from utils import CONFIG
+from utils import CONFIG, Logger
 from utils._types import Pools
 
 from . import multicall
-from .exceptions import PriceNotFound
+from .exceptions import PriceNotFound, BlockchainError
 from .update import apply_updates, create_update_params
 from .ww3 import Web3
+
+
+log = Logger(__name__)
+
 
 _prices: dict[ChecksumAddress, dict[ChecksumAddress, Decimal]] = {}
 _lock: Lock = Lock()
@@ -153,6 +157,19 @@ def update_price_pools(price_pools: Pools) -> None:
     """
     multicall_params = create_update_params(price_pools)
     encoded_updates = multicall.fast_call(multicall_params)
+
+    # check if all results are present
+    retries = 0
+    while not all(encoded_updates):
+        if retries >= CONFIG["max_retries"]:
+            raise BlockchainError(
+                f"Maximum retries ({CONFIG['max_retries']:,})"
+                " for updating price pools exceeded"
+            )
+        # use sync node for retry calls
+        encoded_updates = multicall.call(multicall_params)
+        retries += 1
+
     apply_updates(price_pools, encoded_updates)
 
 

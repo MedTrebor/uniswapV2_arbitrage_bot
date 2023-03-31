@@ -19,10 +19,10 @@ from web3.exceptions import TimeExhausted
 
 install(extra_lines=6, show_locals=True)
 
-GAS_PRICE = int(1e9) + 1
-TOKEN = "0x55d398326f99059fF775485246999027B3197955"
-KEEP_AMOUNT = Decimal(int(3e20))
-SLIPPAGE = Decimal("0.999")
+GAS_PRICE = int(1e9) + 1  # 1.000000001 GWEI
+TOKEN = "0x55d398326f99059fF775485246999027B3197955"  # BUSD
+KEEP_AMOUNT = Decimal(int(3e20))  # 300.00
+SLIPPAGE = Decimal("0.999")  # 0.1%
 
 
 def main():

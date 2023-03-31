@@ -14,10 +14,11 @@ from blockchain.burner import get_burner_addresses
 
 install(extra_lines=6, show_locals=True)
 GAS_PRICE = int(1e9) + 1
+CALLDATA = "0x01"
 
 
 def main():
-    addresses = get_burner_addresses('0x01')[:-1]
+    addresses = get_burner_addresses(CALLDATA)
 
     burners = persistance.load_burners()
     burners.append({"salt": 1, "addresses": addresses})
