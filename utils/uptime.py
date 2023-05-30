@@ -108,7 +108,7 @@ def _update(running_event: Event) -> None:
     """
     global _lock, _start_time, _prev_uptime
 
-    log.info("Uptime measurement started.")
+    log.debug("Uptime measurement started.")
 
     sleep(1)
     while running_event.is_set():
@@ -118,4 +118,4 @@ def _update(running_event: Event) -> None:
 
         sleep(1)
 
-    log.info("Uptime measurement stopped.")
+    log.debug("Uptime measurement stopped.")
