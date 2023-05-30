@@ -31,7 +31,6 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
     global wait, last_wait
 
     try:
-        log.info("[i][b u]ARBITRAGE BOT[/] started.")
         thread_executor = ThreadPoolExecutor(thread_name_prefix="Thread")
 
         network = CONFIG["blockchain"]["name"]
@@ -377,6 +376,7 @@ if __name__ == "__main__":
 
     process_mngr, process_pool = processes.create_process_pool()
 
+    log.info("[i][b u]ARBITRAGE BOT[/] started.")
     try:
         while True:
             main(process_mngr, process_pool)
@@ -390,3 +390,4 @@ if __name__ == "__main__":
         process_pool.terminate()
         process_mngr.shutdown()
         process_mngr.join()
+        log.info("[i][b u]ARBITRAGE BOT[/] stopped.")
