@@ -33,7 +33,6 @@ def _main(lock: Lock):
     swap_selectors = {*short_selectors, *long_selectors}
 
     while True:
-
         txs = get_new_txs(w3)
 
         if not txs:
@@ -162,7 +161,8 @@ def main(lock: Lock):
             print()
             exit()
         except BaseException as error:
-            log.error(error)
+            # log.error(error)
+            continue
 
 
 if __name__ == "__main__":

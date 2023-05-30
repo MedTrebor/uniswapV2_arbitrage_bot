@@ -71,6 +71,7 @@ class Web3:
         "account",
         "batch_checkers",
         "burner_factory",
+        "burner_generator",
         "chain_id",
         # "estimator",
         "eth",
@@ -107,6 +108,9 @@ class Web3:
         ####################################################################
         self.eth = self.main_node.eth
         self.account = create_account(conf["blockchain"]["account"], self.nodes)
+        self.burner_generator = create_account(
+            conf["blockchain"]["burner_generator"], self.nodes
+        )
         self.__node_idx = node_idx(1, conf["poll"]["sync_node"])
         ################################# PATCH #################################
         ######### put factory to `self.main_node` to get local ipc node #########
@@ -175,10 +179,10 @@ class Web3:
         start = perf_counter()
         while not confirmed:
             try:
-                tx_receipt = self.node.eth.get_transaction_receipt(tx_hash)
+                tx_receipt = self.eth.get_transaction_receipt(tx_hash)
                 confirmed = True
             except TransactionNotFound as error:
-                if perf_counter() - start > 10:
+                if perf_counter() - start > CONFIG["transaction"]["receipt_timeout"]:
                     raise error from None
                 continue
 
@@ -362,7 +366,7 @@ class Web3:
         ]
         for i, result in enumerate(as_completed(results), start=1):
             res, url = result.result()
-            log.info(
+            log.debug(
                 f"Estimate result : {i:>2}/{len(results):>2} : [default]{url}[/] : {time_passed()} : {res}"
             )
             yield res
@@ -570,8 +574,8 @@ class Web3:
             return
 
     def __del__(self):
-        self.thread_executor.shutdown(cancel_futures=True)
         try:
+            self.thread_executor.shutdown(cancel_futures=True)
             for session, _ in self.http_sessions:
                 session.close()
         except AttributeError:
@@ -817,7 +821,7 @@ def wrapped_estimate_gas(
     except ValueError as err:
         res = err
 
-    log.info(gas_time())
+    log.debug(gas_time())
 
     return res, url
 

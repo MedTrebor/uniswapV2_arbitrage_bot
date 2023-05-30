@@ -1,17 +1,21 @@
+import sys
 from datetime import timedelta
 from time import perf_counter, sleep
 
 from eth_typing import ChecksumAddress
 from rich import print
-from rich.traceback import install
+from rich.console import Console
 
 import persistance
+import web3
 from blockchain import Web3
-from utils import CONFIG
+from utils import CONFIG, str_obj
 from web3.contract.contract import Contract
 from web3.exceptions import TimeExhausted
 
-install(extra_lines=6, show_locals=True)
+c = Console()
+
+AMOUNT = int(1e18)
 GAS_PRICE = int(1e9) + 1
 
 
@@ -22,11 +26,15 @@ def main():
     wbnb = w3.eth.contract(CONFIG["weths"][0], abi=abi)
     wbnb_fst = w3.eth.contract(CONFIG["weths"][1], abi=abi)
 
-    amount = wbnb_fst.functions.balanceOf(w3.router).call()
+    wbnb_balance = wbnb.functions.balanceOf(w3.router).call()
+    wbnb_fst_balance = wbnb_fst.functions.balanceOf(w3.router).call()
 
-    unwrap_withdraw(w3, amount, wbnb_fst.address)
-    wrap(w3, wbnb, amount)
-    transfer_wbnb(w3, wbnb, amount)
+    unwrap_amount = wbnb_fst_balance
+    wrap_amount = AMOUNT - wbnb_balance
+
+    unwrap_withdraw(w3, unwrap_amount, wbnb_fst.address)
+    wrap(w3, wbnb, wrap_amount)
+    transfer_wbnb(w3, wbnb, wrap_amount)
 
 
 def unwrap_withdraw(w3: Web3, amount: int, wbnb_address: ChecksumAddress):
@@ -48,16 +56,21 @@ def unwrap_withdraw(w3: Web3, amount: int, wbnb_address: ChecksumAddress):
     tx_params["gas"] = int(gas * 1.2)
     w3.nonces[acc] += 1
 
+    print(f"[b]Sending Transaction[/]: {str_obj(tx_params)}")
+
+    send_tx = True
     start = perf_counter()
     while True:
         try:
-            tx_hash = w3.eth.send_transaction(tx_params)
+            if send_tx:
+                tx_hash = w3.eth.send_transaction(tx_params)
             receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 120, 2)
             break
         except ValueError as err:
             print(err)
             if "nonce" in str(err):
-                return
+                send_tx = False
+                continue
             sleep(120)
         except TimeExhausted as err:
             print(err)
@@ -82,16 +95,21 @@ def wrap(w3: Web3, wbnb: Contract, amount: int):
     tx_params["gas"] = int(gas * 1.2)
     w3.nonces[acc] += 1
 
+    print(f"[b]Sending Transaction[/]: {str_obj(tx_params)}")
+
+    send_tx = True
     start = perf_counter()
     while True:
         try:
-            tx_hash = tx.transact(tx_params)
+            if send_tx:
+                tx_hash = tx.transact(tx_params)
             receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 120, 2)
             break
         except ValueError as err:
             print(err)
             if "nonce" in str(err):
-                return
+                send_tx = False
+                continue
             sleep(120)
         except TimeExhausted as err:
             print(err)
@@ -115,16 +133,21 @@ def transfer_wbnb(w3: Web3, wbnb: Contract, amount: int):
     tx_params["gas"] = int(gas * 1.2)
     w3.nonces[acc] += 1
 
+    print(f"[b]Sending Transaction[/]: {str_obj(tx_params)}")
+
+    send_tx = True
     start = perf_counter()
     while True:
         try:
-            tx_hash = tx.transact(tx_params)
+            if send_tx:
+                tx_hash = tx.transact(tx_params)
             receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 120, 2)
             break
         except ValueError as err:
             print(err)
             if "nonce" in str(err):
-                return
+                send_tx = False
+                continue
             sleep(120)
         except TimeExhausted as err:
             print(err)
@@ -140,7 +163,11 @@ def int_to_uint256(num: int) -> str:
 
 
 if __name__ == "__main__":
+    sys.stdout.write("\033]0;REWRAP\007")
+    sys.stdout.flush()
     try:
         main()
     except (SystemExit, KeyboardInterrupt):
         print()
+    except BaseException as error:
+        c.print_exception(extra_lines=6, show_locals=True, suppress=[web3])

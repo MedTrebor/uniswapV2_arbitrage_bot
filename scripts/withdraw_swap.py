@@ -1,28 +1,36 @@
-from datetime import timedelta
 from decimal import Decimal
+from math import ceil
 from time import perf_counter, sleep
 
 from eth_typing import ChecksumAddress
+from hexbytes import HexBytes
 from rich import print
 from rich.traceback import install
 
 import persistance
+import web3
 from arbitrage.arguments import to_hex_uint16, to_hex_uint112
 from arbitrage.calculator import get_amount_out
 from blockchain import Web3, update_pools
 from path import build_graph
 from path.builder import find_paths
-from utils import CONFIG, measure_time
+from utils import CONFIG, measure_time, str_obj
 from utils._types import Pools
 from web3.contract.contract import Contract
-from web3.exceptions import TimeExhausted
+from web3.exceptions import ContractLogicError, TimeExhausted
 
-install(extra_lines=6, show_locals=True)
+install(extra_lines=6, show_locals=True, suppress=[web3])
 
-GAS_PRICE = int(1e9) + 1  # 1.000000001 GWEI
-TOKEN = "0x55d398326f99059fF775485246999027B3197955"  # BUSD
-KEEP_AMOUNT = Decimal(int(3e20))  # 300.00
+BUSD = "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56"
+USDT = "0x55d398326f99059fF775485246999027B3197955"
+
+TOKEN = USDT
+KEEP_AMOUNT = Decimal(int(4e20))  # 400.00
 SLIPPAGE = Decimal("0.999")  # 0.1%
+
+START_GAS_PRICE = int(1e9) + 1  # 1.000000001 GWEI
+END_GAS_PRICE = int(3e9)  # 3 GWEI
+INCREASE_TIME = 300
 
 
 def main():
@@ -31,29 +39,10 @@ def main():
     all_pools = persistance.load_pools()
     paths = create_paths(all_pools)
     pools = extract_pools(paths, all_pools)
-
-    update_pools(pools)
-
     token = get_token(w3)
-
+    nonce = w3.nonce(w3.account)
     amount = Decimal(token.functions.balanceOf(CONFIG["router"]).call()) - KEEP_AMOUNT
-    amount_out, pair, weth = get_best_pair(pools, amount)
-
-    calldata = create_calldata(amount, amount_out, pair, weth, pools)
-
-    execute_tx(w3, calldata)
-
-
-def execute_tx(w3: Web3, calldata: str) -> None:
-    acc = w3.account
-    raw_tx_params = {
-        "from": acc,
-        "to": CONFIG["router_multicall"],
-        "nonce": w3.nonce(acc),
-        "gasPrice": GAS_PRICE,
-        "chainId": w3.chain_id,
-        "data": calldata,
-    }
+    gas_price, gas_change = START_GAS_PRICE, perf_counter()
 
     log_str = measure_time(
         "[b]Transaction Hash[/]: [blue not b link=https://bscscan.com/tx/{h}]{h}[/]\n"
@@ -62,19 +51,71 @@ def execute_tx(w3: Web3, calldata: str) -> None:
     )
     while True:
         try:
-            gas = w3.eth.estimate_gas(raw_tx_params)
-            tx_params = raw_tx_params.copy()
-            tx_params["gas"] = int(gas * 1.2)
-            tx_hash = w3.eth.send_transaction(tx_params)
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 120, 3)
-            break
-        except ValueError as err:
-            print(err)
-            sleep(120)
-        except TimeoutError as err:
-            print(err)
+            update_pools(pools)
 
-    print(log_str(h=receipt["transactionHash"].hex(), g=receipt["gasUsed"]))
+            amount_out, pair, weth = get_best_pair(pools, amount)
+
+            calldata = create_calldata(amount, amount_out, pair, weth, pools)
+
+            gas_price, gas_change = change_gas_price(gas_price, gas_change)
+
+            tx_hash, gas_used = execute_tx(w3, calldata, nonce, gas_price)
+            break
+        except ContractLogicError as err:
+            print(f"[red]ERROR[/]: {str(err)}")
+            sleep(3)
+        except ValueError as err:
+            try:
+                msg = err.args[0]["message"]
+                if msg == "replacement transaction underpriced":
+                    gas_change = 0
+                print(f"[red]ERROR[/]: {msg}")
+            except (KeyError, TypeError, AttributeError, IndexError):
+                print(err)
+            sleep(30)
+        except TimeExhausted as err:
+            print(f"[red]ERROR[/]: {str(err)}")
+
+    print(log_str(h=tx_hash.hex(), g=gas_used))
+
+
+def change_gas_price(current_gas_price: int, last_change: float) -> tuple[int, float]:
+    if current_gas_price >= END_GAS_PRICE:
+        return current_gas_price, last_change
+    
+    if perf_counter() - last_change > INCREASE_TIME:
+        gas_increase1 = ceil(current_gas_price * 1.1)
+        gas_increase2 = ceil(gas_increase1 * 1.1)
+
+        if gas_increase2 > END_GAS_PRICE:
+            gas_increase1 = gas_increase2
+
+        return gas_increase1, perf_counter()
+
+    return current_gas_price, last_change
+
+
+def execute_tx(
+    w3: Web3, calldata: str, nonce: int, gas_price: int
+) -> tuple[HexBytes, int]:
+    acc = w3.account
+    raw_tx_params = {
+        "from": acc,
+        "to": CONFIG["router_multicall"],
+        "nonce": nonce,
+        "gasPrice": gas_price,
+        "chainId": w3.chain_id,
+        "data": calldata,
+    }
+    print(f"[b]Sending transaction[/]: {str_obj(raw_tx_params)}")
+
+    gas = w3.eth.estimate_gas(raw_tx_params)
+    tx_params = raw_tx_params.copy()
+    tx_params["gas"] = int(gas * 1.2)
+    tx_hash = w3.eth.send_transaction(tx_params)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, 30, 3)
+
+    return receipt["transactionHash"], receipt["gasUsed"]
 
 
 def create_calldata(
@@ -147,4 +188,7 @@ def get_token(w3: Web3) -> Contract:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, SystemExit):
+        print()

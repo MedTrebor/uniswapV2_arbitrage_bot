@@ -1,19 +1,20 @@
-download_pools: True
+download_pools: False
 
 multiprocessing:
-  workers: 15
+  workers: 20
   min_chunk: 10
 
 max_retries: 5
 
 transaction:
-  max_delay: 1.2
+  max_delay: 1
   gas_limit_multiplier: 2.33
   min_profit: 0
   gas_reductions: 1
   reduction_denominator: 1.1
-  final_tx: 1.2
+  final_tx: 1.15
   estimation_confirms: 2
+  receipt_timeout: 60
 
 price:
   # not implemented #
@@ -22,9 +23,12 @@ price:
   ###################
 
   # gas price multipliers
+  min_gas_multiplier: 1.2
+  max_gas_multiplier: 3.35
+
   low:
     multiplier: 2.01
-    ratio: 0.96
+    ratio: 0.9
   # skipping mid and high
   mid:
     multiplier: 3
@@ -32,9 +36,6 @@ price:
   high:
     multiplier: 3.5
     ratio: 0.98
-
-  min_gas_multiplier: 1.2
-  max_gas_multiplier: 2.01
 
 poll:
   main: 1
@@ -46,8 +47,8 @@ poll:
   burners: 900
 
 restart:
-  wait: 10
-  multiplier: 2
+  wait: 30
+  multiplier: 1.5
   max_wait: 300
   cooldown: 600
 
@@ -75,12 +76,15 @@ logging:
   show_locals: True
 
 blockchain:
-  name: "bsc"
+  name: bsc
   account: !ENV ${BSC_PK1}
+  burner_generator: !ENV ${BURNER_GENERATOR_PK}
   endpoints:
     main: /home/medtrebor/bsc/data/geth.ipc
-    # main: !ENV https://wandering-empty-bridge.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
-    sync: !ENV https://wandering-empty-bridge.bsc.discover.quiknode.pro/${QUICKNODE_AUTH}/
+    # main: http://127.0.0.1:8546
+    # sync: !ENV https://winter-clean-county.bsc.discover.quiknode.pro/${QUICKNODE_AUTH1}/
+    # sync: !ENV https://proportionate-damp-gas.bsc.discover.quiknode.pro/${QUICKNODE_AUTH2}/
+    sync: !ENV https://prettiest-tiniest-card.bsc.discover.quiknode.pro/${QUICKNODE_AUTH3}/
     other:
       - https://bsc-dataseed1.defibit.io/
       - https://bsc-dataseed1.ninicoin.io/

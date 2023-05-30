@@ -35,8 +35,9 @@ def update_prices(price_pools: Pools) -> None:
     all_reserves = extract_all_reserves(price_pools)
     update_global_prices(all_reserves)
 
-    with _lock:
-        _gas_price = Web3().eth.gas_price
+    # with _lock:
+    #     _gas_price = Web3().eth.gas_price
+    _gas_price = Decimal(int(3e9))
 
 
 def get_price(base_token: ChecksumAddress, quote_token: ChecksumAddress) -> Decimal:

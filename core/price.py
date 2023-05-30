@@ -89,6 +89,12 @@ class PricePollInterval:
         self.start()
 
     @property
+    def is_running(self) -> bool:
+        """Check if price pool is running."""
+        with self._lock:
+            return self._running
+
+    @property
     def gas_params(self) -> GasParams:
         """`gasPrice` or `maxFeePerGas` and `maxPriorityFeePerGas`."""
         with self._lock:

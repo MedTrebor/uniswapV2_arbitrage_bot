@@ -24,10 +24,12 @@ def main():
 
     tokens_balance = get_tokens_balance(tokens)
     executor_balance = w3.eth.get_balance(w3.account)
+    burner_generator_balance = w3.eth.get_balance(w3.burner_generator)
 
     stats = {
         "time": str(datetime.now()),
         "executor": executor_balance,
+        "burner_generator": burner_generator_balance,
         "router": tokens_balance,
         "bnb_price": bnb_price,
         "burners": get_burners_count(),

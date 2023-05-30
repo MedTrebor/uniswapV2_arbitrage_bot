@@ -19,6 +19,7 @@ class TransactionConf(TypedDict):
     reduction_denominator: int | float
     final_tx: int | float
     estimation_confirms: int
+    receipt_timeout: int | float
 
 
 class PollConf(TypedDict):
@@ -74,6 +75,7 @@ class EndpointsConf(TypedDict):
 class BlockchainConf(TypedDict):
     name: str
     account: SecretStr
+    burner_generator: SecretStr
     endpoints: EndpointsConf
     estimator: SecretStr
     chain_id: int
@@ -391,6 +393,7 @@ class TokenBalance(TypedDict):
 class BalanceStats(TypedDict):
     time: str
     executor: int
+    burner_generator: int
     router: list[TokenBalance]
     bnb_price: float
     burners: int

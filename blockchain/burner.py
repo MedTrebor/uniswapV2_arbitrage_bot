@@ -1,12 +1,14 @@
 from time import sleep
+
 from eth_typing import ChecksumAddress
 from eth_utils.address import to_checksum_address
 from eth_utils.crypto import keccak
 from hexbytes import HexBytes
 
 from utils import CONFIG, Logger, measure_time, str_obj
-from utils._types import BurnersData, TxTrace
+from utils._types import ArbArgs, BurnersData, TxTrace
 from web3.exceptions import TimeExhausted
+from web3.types import TxReceipt
 
 from . import multicall
 from .exceptions import BurnersCreationError
@@ -190,18 +192,34 @@ def int_to_hex32(num: int) -> str:
     return padding + not_padded
 
 
-def get_used_burnerns(tx_hash: HexBytes | str) -> list[ChecksumAddress]:
-    """Get burner addresses used in transaction with provided ``tx_hash``.
+# def get_used_burnerns(tx_hash: HexBytes | str) -> list[ChecksumAddress]:
+#     """Get burner addresses used in transaction with provided ``tx_hash``.
+
+#     Args:
+#         tx_hash (HexBytes | str): Transaction hash.
+
+#     Returns:
+#         list[ChecksumAddress]: Burner addresses
+#     """
+#     tx_trace = Web3().trace_transaction(tx_hash)
+
+#     return get_burners_from_tx(tx_trace)
+
+
+def get_used_burnerns(tx_receipt: TxReceipt, arb_arg: ArbArgs) -> list[ChecksumAddress]:
+    """Get burner addresses used in transaction.
 
     Args:
-        tx_hash (HexBytes | str): Transaction hash.
+        tx_receipt (TxReceipt): Transaction receipt.
+        arb_arg (ArbArgs): Arbitrage transaction arguments.
 
     Returns:
         list[ChecksumAddress]: Burner addresses
     """
-    tx_trace = Web3().trace_transaction(tx_hash)
-
-    return get_burners_from_tx(tx_trace)
+    if tx_receipt["gasUsed"] < 60_000:
+        return [to_checksum_address(arb_arg["burners"][0])]
+    else:
+        return [to_checksum_address(burner) for burner in arb_arg["burners"]]
 
 
 def get_burners_from_tx(tx_trace: TxTrace) -> list[ChecksumAddress]:

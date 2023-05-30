@@ -15,7 +15,7 @@ validation.METHODS_TO_VALIDATE.clear()
 
 
 def main():
-    w3_remote = Web3(HTTPProvider(CONFIG["blockchain"]["endpoints"]["sync"].str()))
+    w3_remote = Web3(HTTPProvider("https://bsc-dataseed1.defibit.io/"))
     w3_local = Web3(IPCProvider("/home/medtrebor/bsc/data/geth.ipc"))
 
     remote_block = w3_remote.eth.block_number
@@ -30,11 +30,11 @@ def main():
     with Progress(
         " [b]{task.description}[/]:",
         "[{task.fields[delay_style]}]{task.fields[cur_block]:,}[/]/"
-        "[{task.fields[rem_style]}]{task.fields[rem_block]:,}[/]"
-        " [b {task.fields[delay_style]}]{task.fields[delay]:>6.1f}[/]s",
-        # BarColumn(),
-        # TextColumn("[progress.percentage]{task.percentage:>6.2f}%"),
-        # TimeRemainingColumn(),
+        "[{task.fields[rem_style]}]{task.fields[rem_block]:,}[/]",
+        # " [b {task.fields[delay_style]}]{task.fields[delay]:>6.1f}[/]s",
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>6.2f}%"),
+        TimeRemainingColumn(),
         "\n",
         transient=True,
     ) as progress:
@@ -68,7 +68,7 @@ def main():
                 delay += perf_counter() - delay_counter
                 delay_counter = perf_counter()
                 if delay < 0.1:
-                     delay_style = "green"
+                    delay_style = "green"
                 elif delay > 0.5:
                     delay_style = "red"
                 else:

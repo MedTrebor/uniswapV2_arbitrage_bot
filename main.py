@@ -5,59 +5,73 @@ from multiprocessing.managers import SyncManager
 from multiprocessing.pool import Pool as ProcessPool
 from time import perf_counter, sleep, time
 
+from requests.exceptions import ConnectionError
+from rich.errors import LiveError
+
 import arbitrage
 import blockchain
 import persistance
-from core import PricePollInterval, loader, logger, processes, whitelist, sync
-from utils import CONFIG, BlockTime, Logger, TimePassed, WaitPrevious, measure_time
-
+from core import PricePollInterval, loader, logger, processes, sync, whitelist
+from utils import (
+    CONFIG,
+    BlockTime,
+    Logger,
+    TimePassed,
+    WaitPrevious,
+    measure_time,
+    uptime,
+)
 
 log = Logger(__name__)
+last_wait: float
+wait = CONFIG["restart"]["wait"]
 
 
 def main(process_mngr: SyncManager, process_pool: ProcessPool):
-    log.info("[i][b u]ARBITRAGE BOT[/] started.")
-
-    network = CONFIG["blockchain"]["name"]
-
-    w3 = blockchain.Web3(new_singleton=True)
-    # sync.start()
-    price = PricePollInterval(new_singleton=True)
-
-    thread_executor = ThreadPoolExecutor(thread_name_prefix="Thread")
-
-    poll_main = WaitPrevious(CONFIG["poll"]["main"])
-    poll_pools = TimePassed(CONFIG["poll"]["pools"])
-    save_pre_blacklist = TimePassed()
-    save_pools = TimePassed(60 * 5)
-
-    (
-        pools,
-        pool_numbers,
-        last_block,
-        blacklist_paths,
-        pre_blacklist_paths,
-        burners,
-    ) = loader.load_data()
-
-    # NOT WORKING
-    # blockchain.remove_all_used_burners(burners)
-    #
-    # persistance.save_burners(burners)
-
-    # SKIP CREATING BURNERS
-    blockchain.create_burners(burners, w3.account)
-    persistance.save_burners(burners)
-
-    price.start()
-
-    if not CONFIG["download_pools"]:
-        poll_pools()
-        processes.share_pools(process_mngr, process_pool, network, pools)
-        pool_to_paths = loader.build_paths(pools, blacklist_paths, process_pool)
-        processes.share_paths(process_mngr, process_pool, network, pool_to_paths)
+    global wait, last_wait
 
     try:
+        log.info("[i][b u]ARBITRAGE BOT[/] started.")
+        thread_executor = ThreadPoolExecutor(thread_name_prefix="Thread")
+
+        network = CONFIG["blockchain"]["name"]
+
+        w3 = blockchain.Web3(new_singleton=True)
+        # sync.start()
+        price = PricePollInterval(new_singleton=True)
+
+        poll_main = WaitPrevious(CONFIG["poll"]["main"])
+        poll_pools = TimePassed(CONFIG["poll"]["pools"])
+        save_pre_blacklist = TimePassed()
+        save_pools = TimePassed(60 * 5)
+
+        (
+            pools,
+            pool_numbers,
+            last_block,
+            blacklist_paths,
+            pre_blacklist_paths,
+            burners,
+        ) = loader.load_data()
+
+        # NOT WORKING
+        # blockchain.remove_all_used_burners(burners)
+        #
+        # persistance.save_burners(burners)
+
+        # SKIP CREATING BURNERS
+        # blockchain.create_burners(burners, w3.account)
+        # persistance.save_burners(burners)
+
+        price.start()
+
+        if not CONFIG["download_pools"]:
+            poll_pools()
+            processes.share_pools(process_mngr, process_pool, network, pools)
+            pool_to_paths = loader.build_paths(pools, blacklist_paths, process_pool)
+            processes.share_paths(process_mngr, process_pool, network, pool_to_paths)
+            uptime.start()
+
         # main loop
         while True:
             poll_main()
@@ -92,6 +106,7 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
                 persistance.save_pools(pools)
                 persistance.save_pool_numbers(pool_numbers)
+                uptime.start()
 
             # save all pools that have change to not miss updating
             to_update = {}
@@ -244,9 +259,9 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                     if tx_receipts:
                         # removing used burners
                         used_burners = []
-                        for receipt in tx_receipts:
+                        for receipt, arb_arg in zip(tx_receipts, arb_args, strict=True):
                             used_burners.extend(
-                                blockchain.get_used_burnerns(receipt["transactionHash"])
+                                blockchain.get_used_burnerns(receipt, arb_arg)
                             )
                             log.info(
                                 f"Last block: {last_block:,}, Execution block: {receipt['blockNumber']:,}"
@@ -259,8 +274,8 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                             tx_receipts, arbs, arb_args, used_burners
                         )
 
-                        blockchain.create_burners(burners, w3.account)
-                        persistance.save_burners(burners)
+                        # blockchain.create_burners(burners, w3.account)
+                        # persistance.save_burners(burners)
 
                 log.debug(
                     "Finished checking potential arbitrages in "
@@ -301,6 +316,24 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
     except (KeyboardInterrupt, SystemExit) as error:
         raise error
 
+    except ConnectionError:
+        uptime.stop()
+        try:
+            if perf_counter() - last_wait <= CONFIG["restart"]["cooldown"]:
+                wait *= CONFIG["restart"]["multiplier"]
+                wait = min(round(wait), CONFIG["restart"]["max_wait"])
+            else:
+                wait = CONFIG["restart"]["wait"]
+        except NameError:
+            pass
+
+        last_wait = perf_counter()
+        log.error(f"No internet connection. Restarting in {timedelta(seconds=wait)}.")
+        sleep(wait)
+
+    except LiveError as err:
+        log.error(err)
+
     except BaseException as error:
         restart_conf = CONFIG["restart"]
         log.exception(error)
@@ -324,7 +357,12 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
 
     finally:
         thread_executor.shutdown(True, cancel_futures=True)
-        price.kill()
+        uptime.stop()
+        try:
+            if price.is_running:
+                price.kill()
+        except UnboundLocalError:
+            pass
         # sync.kill()
 
 
@@ -333,9 +371,9 @@ if __name__ == "__main__":
     multiprocessing.current_process().name = "BSC"
 
     lock = multiprocessing.Lock()
-    multiprocessing.Process(
-        target=whitelist.main, args=[lock], name="Whitelister", daemon=True
-    ).start()
+    # multiprocessing.Process(
+    #     target=whitelist.main, args=[lock], name="Whitelister", daemon=True
+    # ).start()
 
     process_mngr, process_pool = processes.create_process_pool()
 

@@ -5,7 +5,11 @@ name = "pypi"
 
 [scripts]
 main = "python main.py"
-status = "python scripts/tx_status.py"
+make = "python scripts/make_stats.py"
+read =  "python scripts/read_stats.py"
+stats = "python scripts/stats.py"
+withdraw_swap = "python scripts/withdraw_swap.py"
+rewrap = "python scripts/rewrap.py"
 
 [packages]
 pyaml-env = "*"

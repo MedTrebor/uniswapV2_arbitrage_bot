@@ -22,7 +22,7 @@ def read_balance(balance_stats: BalanceStats):
     burn_cost = 36_930 * CONFIG["burner"]["gas_price"]
 
     time = balance_stats["time"][: balance_stats["time"].find(".")]
-    bnb = balance_stats["executor"]
+    bnb = balance_stats["executor"] + balance_stats["burner_generator"]
 
     usd = 0
     for token_balance in balance_stats["router"]:
