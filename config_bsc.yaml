@@ -84,7 +84,8 @@ blockchain:
     # main: http://127.0.0.1:8546
     # sync: !ENV https://winter-clean-county.bsc.discover.quiknode.pro/${QUICKNODE_AUTH1}/
     # sync: !ENV https://proportionate-damp-gas.bsc.discover.quiknode.pro/${QUICKNODE_AUTH2}/
-    sync: !ENV https://prettiest-tiniest-card.bsc.discover.quiknode.pro/${QUICKNODE_AUTH3}/
+    # sync: !ENV https://prettiest-tiniest-card.bsc.discover.quiknode.pro/${QUICKNODE_AUTH3}/
+    sync: !ENV https://hidden-magical-diamond.bsc.discover.quiknode.pro/${QUICKNODE_AUTH4}/
     other:
       - https://bsc-dataseed1.defibit.io/
       - https://bsc-dataseed1.ninicoin.io/
