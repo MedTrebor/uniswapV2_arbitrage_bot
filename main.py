@@ -210,7 +210,11 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                 local_block, to_report = w3.local_node.eth.block_number, False
 
                 _sync_log = measure_time("Local node synced in {}.")
+                sync_start = perf_counter()
+
                 while local_block < last_block:
+                    if perf_counter() - sync_start > CONFIG["timeout"]:
+                        raise ConnectionError("Local node sync timeout")
                     if not to_report:
                         to_report = True
                     local_block = w3.local_node.eth.block_number

@@ -6,6 +6,8 @@ multiprocessing:
 
 max_retries: 5
 
+timeout: 30
+
 transaction:
   max_delay: 1
   gas_limit_multiplier: 2.33

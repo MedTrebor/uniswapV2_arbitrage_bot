@@ -146,6 +146,7 @@ class ConfigDict(TypedDict):
     download_pools: bool
     multiprocessing: Multiprocessing
     max_retries: int
+    timeout: int | float
     transaction: TransactionConf
     poll: PollConf
     restart: RestartConf
