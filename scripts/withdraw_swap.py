@@ -24,8 +24,8 @@ install(extra_lines=6, show_locals=True, suppress=[web3])
 BUSD = "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56"
 USDT = "0x55d398326f99059fF775485246999027B3197955"
 
-TOKEN = USDT
-KEEP_AMOUNT = Decimal(int(4e20))  # 400.00
+TOKEN = BUSD
+KEEP_AMOUNT = Decimal(int(35e19))  # 350.00
 SLIPPAGE = Decimal("0.999")  # 0.1%
 
 START_GAS_PRICE = int(1e9) + 1  # 1.000000001 GWEI

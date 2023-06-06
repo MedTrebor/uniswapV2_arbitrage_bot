@@ -10,6 +10,7 @@ read =  "python scripts/read_stats.py"
 stats = "python scripts/stats.py"
 withdraw_swap = "python scripts/withdraw_swap.py"
 rewrap = "python scripts/rewrap.py"
+create_burners = "python scripts/create_burners.py"
 
 [packages]
 pyaml-env = "*"
