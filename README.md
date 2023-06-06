@@ -32,7 +32,7 @@ MaxPeers = 600
 <br>
 
 # [QUICKNODE](https://www.quicknode.com/)
-Setup 3 seperate **Quicknode** fee accounts [here](https://www.quicknode.com/signup).
+Setup 4 seperate **Quicknode** fee accounts [here](https://www.quicknode.com/signup).
 
 <br>
 
