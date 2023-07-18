@@ -57,6 +57,9 @@ def hide_sensitive_info(config: dict) -> None:
     config["blockchain"]["endpoints"]["sync"] = SecretStr(
         config["blockchain"]["endpoints"]["sync"]
     )
+    config["blockchain"]["endpoints"]["local_http"] = SecretStr(
+        config["blockchain"]["endpoints"]["local_http"]
+    )
     config["blockchain"]["endpoints"]["other"] = [
         SecretStr(url) for url in config["blockchain"]["endpoints"]["other"]
     ]

@@ -69,6 +69,7 @@ class TokenParmas(TypedDict):
 class EndpointsConf(TypedDict):
     main: SecretStr
     sync: SecretStr
+    local_http: SecretStr
     other: list[SecretStr]
 
 

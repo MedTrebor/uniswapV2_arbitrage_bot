@@ -131,7 +131,7 @@ class Web3:
         )
         self.node_idx
         self.nonces: dict[str, int] = {}  # type ignore
-        self.http_sessions = create_http_sessions([endpoints["main"]])
+        self.http_sessions = create_http_sessions([endpoints["local_http"]])
         """Holds `requests.Session` and endpoint wrapped in `SecretStr`."""
         # self.pending_filters: list[TransactionFilter] = [
         #     node.eth.filter("pending") for node in self.nodes
