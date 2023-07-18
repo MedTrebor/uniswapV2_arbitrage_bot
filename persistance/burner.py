@@ -70,9 +70,9 @@ def load_generator_burners() -> list[BurnersData]:
     try:
         with open("data/generator_burners.json") as file:
             return json.load(file)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
-    
+
 
 def save_generator_burners(burners: list[BurnersData]) -> None:
     """Save generator burners to storage.
