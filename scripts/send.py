@@ -7,7 +7,7 @@ from web3.exceptions import TimeExhausted
 
 c = Console()
 
-AMOUNT = int(17e16)  # 0.18 BNB
+AMOUNT = 171121418361121454  # 0.17.. BNB
 TO = "0x6ad9aEf9E10FC17D2a36769719F18ae17F6a38af"  # burner generator
 START_GAS_PRICE = int(1e9) + 1  # 1.000000001 GWEI
 END_GAS_PRICE = int(3e9)  # 3 GWEI

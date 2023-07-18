@@ -11,6 +11,8 @@ stats = "python scripts/stats.py"
 withdraw_swap = "python scripts/withdraw_swap.py"
 rewrap = "python scripts/rewrap.py"
 create_burners = "python scripts/create_burners.py"
+send = "python scripts/send.py"
+get_burners = "python scripts/get_burners.py"
 
 [packages]
 pyaml-env = "*"
