@@ -1,0 +1,47 @@
+#define macro RESERVES_SELECTOR() = takes(0) returns (0) {
+    // store reserves selector to memory
+    __RIGHTPAD(0x0902f1ac)  // [selector]
+    callvalue               // [mem_location, selector]
+    mstore                  // []
+}
+
+#define macro GET_RESERVES() = takes (1) returns (1) {
+    // get reserves of pair, selector is in memory 0
+    // takes [pair]
+    // arguments for call
+    0x40        // [ret_size, pair]
+    0x04        // [ret_offset, ret_size, pair]
+    dup1        // [args_size, ret_offset, ret_size, pair]
+    callvalue   // [args_offset, args_size, ret_offset, ret_size, pair]
+    dup5        // [pair, args_offset, args_size, ret_offset, ret_size, pair]
+    gas         // [gas, pair, args_offset, args_size, ret_offset, ret_size, pair]
+    
+    staticcall  // [success, pair]
+    pop         // [pair]
+}
+
+#define macro SWAP_SELECTOR() = takes (0) returns (0) {
+    // load swap selector to memory
+    __RIGHTPAD(0x022c0d9f)  // [selector]
+    callvalue               // [0, selector]
+    mstore                  // []
+}
+
+
+#define macro SWAP() = takes (1) returns (0) {
+    // execute swap call, arguments are loaded
+    // takes [pair_address]
+    callvalue  // [ret_offset, pair_address]
+    0xa4       // [args_size, ret_offset, pair_address]
+    callvalue  // [args_offset, args_size, ret_offset, pair_address]
+    callvalue  // [value, args_offset, args_size, ret_offset, pair_address]
+    callvalue  // [ret_size, value, args_offset, args_size, ret_offset, pair_address]
+    swap5      // [pair_address, value, args_offset, args_size, ret_offset, ret_size]
+    gas        // [gas, pair_address, value, args_offset, args_size, ret_offset, ret_size]
+
+    call       // [success]
+    // pop        // []
+    iszero     // [success==0]
+    fail       // [pc, success==0]
+    jumpi      // []
+}

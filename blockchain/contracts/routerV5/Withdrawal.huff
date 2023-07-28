@@ -1,0 +1,120 @@
+#include "./Auth.huff"
+#include "./WETH.huff"
+#include "./ERC20.huff"
+
+#define error WithdrawError()
+
+#define macro UNWRAP_WITHDRAW() = takes (0) returns (1) {
+    // unwrap and witdhraw WETH
+
+    AUTHORIZE_BOT()         // []
+
+    // storing selector
+    __RIGHTPAD(0x2e1a7d4d)  // [selector]
+    callvalue mstore        // []
+
+    // getting amount
+    0x01 calldataload       // [amount]
+
+    // storing amount
+    dup1 0x04 mstore        // [amount]
+
+    // call args
+    callvalue               // [ret_size, amount]
+    callvalue               // [ret_offset, ret_size, amount]
+    0x24                    // [args_size, ret_offset, ret_size, amount]
+    callvalue               // [args_offset, args_size, ret_offset, ret_size, amount]
+    callvalue               // [value, args_offset, args_size, ret_offset, ret_size, amount]
+    0x15 calldataload       // [address, value, args_offset, args_size, ret_offset, ret_size, amount]
+    gas                     // [gas, address, value, args_offset, args_size, ret_offset, ret_size, amount]
+
+    // weth witdraw
+    call                    // [success, amount]
+    iszero                  // [success==0, amount]
+    witdraw_fail jumpi      // [amount]
+
+    // send eth args
+    callvalue               // [ret_offset, amount]
+    callvalue               // [args_size, ret_offset, amount]
+    callvalue               // [args_offset, args_size, ret_offset, amount]
+    callvalue               // [ret_size, args_offset, args_size, ret_offset, amount]
+    swap4                   // [amount, args_offset, args_size, ret_offset, ret_size]
+    origin                  // [address, amount, args_offset, args_size, ret_offset, ret_size]
+    gas                     // [gas, address, amount, args_offset, args_size, ret_offset, ret_size]
+    
+    // send
+    call stop               // [success]
+}
+
+#define macro WITHDRAW() = takes (0) returns (0) {
+    // storing transfer selector and amount
+    TRANSFER_SELECTOR()   // []
+    0x01 calldataload     // [amount]
+    0x24 mstore           // []
+
+    // loading beneficiaries
+    callvalue sload       // [benef1]
+    0x01      sload       // [benef2, benef1]
+
+    // authorizing
+    dup2 caller eq        // [caller==benef1, benef2, benef1]
+    witdhraw_benef jumpi  // [benef2, benef1]
+    dup1 caller eq        // [caller==benef2, benef2, benef1]
+    witdhraw_benef jumpi  // [benef2, benef1]
+    AUTHORIZE_BOT()       // [benef2, benef1]
+
+    // storing to
+    origin 0x04 mstore    // [benef2, benef1]
+
+    // transfering
+    callvalue callvalue   // [ret_offset, res_size, benef2, benef1]
+    0x44 callvalue        // [args_offset, args_size, ret_offset, res_size, benef2, benef1]
+    callvalue             // [value, args_offset, args_size, ret_offset, res_size, benef2, benef1]
+    0x15 calldataload     // [address, value, args_offset, args_size, ret_offset, res_size, benef2, benef1]
+    gas                   // [gas, address, value, args_offset, args_size, ret_offset, res_size, benef2, benef1]
+    call iszero           // [success==0, benef2, benef1]
+
+    witdraw_fail jumpi    // [benef2, benef1]
+    stop
+
+    witdhraw_benef:
+        // storing to = benef2
+        0x04 mstore              // [benef1]
+
+        // getting token address
+        0x15 calldataload        // [address, benef1]
+
+        // transfering to benef2
+        dup1 TRANSFER()          // [address, benef1]
+
+        // storing to = benef1
+        swap1 0x04 mstore        // [address]
+
+        // transfering to benef1
+        callvalue 0x44           // [args_size, ret_offset, address]
+        callvalue callvalue      // [value, args_offset, args_size, ret_offset, address]
+        callvalue swap5          // [address, value, args_offset, args_size, ret_offset, ret_size]
+        gas call iszero          // [success==0]
+
+        witdraw_fail jumpi       // []
+        stop
+}
+
+#define macro WITHDRAW_ETH() = takes (0) returns (1) {
+    AUTHORIZE_BOT()  // []
+    
+    // transfering ETH
+    callvalue callvalue  // [ret_offset, ret_size]
+    callvalue callvalue  // [args_offset, args_size, ret_offset, ret_size]
+    0x01 calldataload    // [value, args_offset, args_size, ret_offset, ret_size]
+    origin gas           // [gas, address, value, args_offset, args_size, ret_offset, ret_size]
+    call stop            // [success]
+}
+
+#define macro WITHDRAWAL_FAILED() = takes (0) returns (0) {
+    __ERROR(WithdrawError)  // [error_sig]
+    callvalue mstore        // []
+    0x04                    // [size]
+    callvalue               // [offset, size]
+    revert                  // []
+}

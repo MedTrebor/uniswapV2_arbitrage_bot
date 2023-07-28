@@ -1,0 +1,60 @@
+#define macro SELF_BLANCE() = takes (1) returns (1) {
+    // get ERC20 token balance of self
+    // takes: [token_address]
+    __RIGHTPAD(0x70a08231)  // [selector, token_address]
+    callvalue mstore        // [token_address]
+    address                 // [self.address, token_address]
+    0x04 mstore             // [token_address]
+    callvalue               // [return_offset, token_address]
+    0x24                    // [args_size, return_offset, token_address]
+    callvalue               // [args_offset, args_size, return_offset, token_address]
+    0x20                    // [return_size, args_offset, args_size, return_offset, token_address]
+    swap4                   // [token_address, args_offset, args_size, return_offset, return_size]
+    gas                     // [gas, token_address, args_offset, args_size, return_offset, return_size]
+    staticcall              // [success]
+    pop                     // []
+    callvalue mload         // [balance]
+}
+
+
+#define macro TRANSFER() = takes (1) returns (0) {
+    // transfer tokens
+    // arguments have to be loaded to memory
+    // takes: [token_address]
+    callvalue  // [ret_offset, token_address]
+    0x44       // [args_size, ret_offset, token_address]
+    callvalue  // [args_offset, args_size, ret_offset, token_address]
+    callvalue  // [value, args_offset, args_size, ret_offset, token_address]
+    callvalue  // [ret_size, value, args_offset, args_size, ret_offset, token_address]
+    swap5      // [token_address, value, args_offset, args_size, ret_offset, ret_size]
+    gas        // [gas, token_address, value, args_offset, args_size, ret_offset, ret_size]
+    call       // [success]
+    pop        // []
+}
+
+
+#define macro CHECKED_TRANSFER() = takes (1) returns (0) {
+    // transfer tokens
+    // arguments have to be loaded to memory
+    // takes: [token_address]
+    callvalue  // [ret_offset, token_address]
+    0x44       // [args_size, ret_offset, token_address]
+    callvalue  // [args_offset, args_size, ret_offset, token_address]
+    callvalue  // [value, args_offset, args_size, ret_offset, token_address]
+    callvalue  // [ret_size, value, args_offset, args_size, ret_offset, token_address]
+    swap5      // [token_address, value, args_offset, args_size, ret_offset, ret_size]
+    gas        // [gas, token_address, value, args_offset, args_size, ret_offset, ret_size]
+    call       // [success]
+    iszero     // [success==0]
+    fail       // [pc, success==0]
+    jumpi      // []
+}
+
+
+#define macro TRANSFER_SELECTOR() = takes (0) returns (0) {
+    // load transfer selector to memory
+    __RIGHTPAD(0xa9059cbb)  // [selector]
+    callvalue               // [0, selector]
+    mstore                  // []
+}
+

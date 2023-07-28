@@ -1,0 +1,22 @@
+#define error Unauthorized()
+
+#define macro AUTHORIZE_BOT() = takes (0) returns (0) {
+    // check if transaction origin is bot
+    origin 0x0fed3a25eee9d525a5671b5995fd489fcd  // [tx_origin, bot]
+    AUTHORIZE()                                  // []
+}
+
+#define macro AUTHORIZE() = takes (2) returns (0) {
+    // check if caller is authorized
+    // takes [caller, auth_acc]
+    xor           // [caller!=auth_acc]
+    unauthorized  // [pc, caller!=auth_acc]
+    jumpi         // []
+}
+
+#define macro UNAUTHORIZED() = takes (0) returns (0) {
+    __ERROR(Unauthorized)  // [sig]
+    callvalue mstore       // []
+    0x04 callvalue         // [offset, size]
+    revert                 // []
+}

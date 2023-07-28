@@ -1,0 +1,13 @@
+#define macro GET_AMOUNT_OUT(reserve_in, reserve_out) = takes (1) returns (1) {
+    // get amount out
+    // takes [amount_in_fee]
+    0x2710               // [10_000, amount_in_fee]
+    <reserve_in> mload   // [reserve_in, 10_000, amount_in_fee]
+    mul                  // [reserve_in*10_000, amount_in_fee]
+    dup2                 // [amount_in_fee, reserve_in*10_000, amount_in_fee]
+    add                  // [denominator, amount_in_fee]
+    swap1                // [amount_in_fee, denominator]
+    <reserve_out> mload  // [reserve_out, amount_in_fee, denominator]
+    mul                  // [numerator, denominator]
+    div                  // [amount_out]
+}

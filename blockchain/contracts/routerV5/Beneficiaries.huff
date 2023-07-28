@@ -1,0 +1,35 @@
+#include "./Auth.huff"
+
+#define macro SET_BENEFICIARY1() = {
+    // loading slot
+    callvalue sload    // [benef1]
+
+    // authorizing
+    caller             // [caller, benef1]
+    AUTHORIZE()        // []
+
+    // getting new beneficiary 1
+    0x01 calldataload  // [new_benef1[<<]]
+    0x60 shr           // [new_benef1]
+
+    // storing to slot0
+    callvalue sstore  // []
+    stop
+}
+
+#define macro SET_BENEFICIARY2() = {
+    // loading slot
+    0x01 sload         // [benef2]
+
+    // authorizing
+    caller             // [caller, benef2]
+    AUTHORIZE()        // []
+
+    // getting new beneficiary 2
+    0x01 calldataload  // [new_benef2[<<]]
+    0x60 shr           // [new_benef2]
+
+    // storing to slot0
+    0x01 sstore        // []
+    stop
+}

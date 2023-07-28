@@ -1,0 +1,42 @@
+#define macro WETH_WITHDRAW() = takes (2) returns (0) {
+    // withraw weth
+    // takes: [amount, address]
+
+    // store selector
+    __RIGHTPAD(0x2e1a7d4d)  // [selector, amount, address]
+    callvalue mstore        // [amount, address]
+
+    // store amount
+    0x04 mstore             // [address]
+
+    // call args
+    callvalue               // [ret_offset, address]
+    0x24                    // [args_size, ret_offset, address]
+    callvalue               // [args_offset, args_size, ret_offset, address]
+    callvalue               // [value, args_offset, args_size, ret_offset, address]
+    callvalue               // [ret_size, value, args_offset, args_size, ret_offset, address]
+    swap5                   // [address, value, args_offset, args_size, ret_offset, ret_size]
+    gas                     // [gas, address, value, args_offset, args_size, ret_offset, ret_size]
+
+    call pop                // []
+}
+
+#define macro WETH_DEPOSIT() = takes (2) returns (0) {
+    // deposit weth
+    // takes: [amount, address]
+
+    // store selector
+    __RIGHTPAD(0xd0e30db0)  // [selector, amount, address]
+    callvalue mstore        // [amount, address]
+
+    // call args
+    0x04                    // [args_size, amount, address]
+    callvalue               // [args_offset, args_size, amount, address]
+    callvalue               // [ret_offset, args_offset, args_size, amount, address]
+    swap3                   // [amount, args_offset, args_size, ret_offset, address]
+    callvalue               // [ret_size, amount, args_offset, args_size, ret_offset, address]
+    swap5                   // [address, amount, args_offset, args_size, ret_offset, ret_size]
+    gas                     // [gas, address, amount, args_offset, args_size, ret_offset, ret_size]
+
+    call pop                // []
+}

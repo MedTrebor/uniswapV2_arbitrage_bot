@@ -1,0 +1,103 @@
+// ARGUMENT: salt (optional)
+// VALUE has to be 1 WEI for cheap + 1 increment
+// returndatasize replaces 'push1 0x00'
+// callvalue replaces 'push1 0x01'
+
+
+#define constant BYTECODE = 0x77700fed3a25eee9d525a5671b5995fd489fcd3218585732ff3d5260186008f3
+
+
+#define macro INCREMENT_COPY_DEPLOY_31() = takes (4) returns (4) {
+    // deploy 31 contracts and keep deployment arguments on stack
+    // takes [value, offset, size, salt]
+
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+1]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+2]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+3]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+4]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+5]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+6]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+7]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+8]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+9]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+10]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+11]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+12]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+13]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+14]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+15]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+16]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+17]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+18]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+19]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+20]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+21]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+22]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+23]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+24]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+25]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+26]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+27]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+28]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+29]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+30]
+    INCREMENT_COPY_DEPLOY()        // [vlaue, offset, size, salt+31]
+}
+
+#define macro INCREMENT_COPY_DEPLOY() = takes (4) returns (4) {
+    // copy arguments, increment salt and deploy
+    // takes [value, offset, size, salt]
+
+    swap3 callvalue add swap3      // [value, offset, size, salt+1]
+    dup4 dup4                      // [size, salt+1, value, offset, size, salt+1]
+    returndatasize returndatasize  // [value, offset, size, salt+1, value, offset, size, salt+1]
+    create2 pop                    // [value, offset, size, salt+1]
+}
+
+#define macro DEPLOY() = takes (1) returns (1) {
+    // deploy 256 burner contracts contracts
+    // takes [salt]
+
+    // loading arguments for deployement
+    0x20 returndatasize returndatasize  // [value, offset, size, salt]
+
+    // copying arguments
+    dup4 dup4                           // [size, salt, value, offset, size, salt]
+    returndatasize returndatasize       // [value, offset, size, salt, value, offset, size, salt]
+
+    // deployement 1
+    create2 pop                         // [value, offset, size, salt]
+
+    // 8 deployments of 31 contracts
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+31]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+62]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+93]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+124]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+155]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+186]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+217]
+    INCREMENT_COPY_DEPLOY_31()          // [value, offset, size, salt+248]
+
+    // 6 deployemnts of single contract
+    INCREMENT_COPY_DEPLOY()             // [value, offset, size, salt+249]
+    INCREMENT_COPY_DEPLOY()             // [value, offset, size, salt+250]
+    INCREMENT_COPY_DEPLOY()             // [value, offset, size, salt+251]
+    INCREMENT_COPY_DEPLOY()             // [value, offset, size, salt+252]
+    INCREMENT_COPY_DEPLOY()             // [value, offset, size, salt+253]
+    INCREMENT_COPY_DEPLOY()             // [value, offset, size, salt+254]
+
+    // last deployemnt
+    swap3 callvalue add swap3           // [value, offset, size, salt+255]
+    create2                             // [address]
+}
+
+#define macro MAIN() = takes (0) returns (1) {
+    // load contract
+    [BYTECODE] returndatasize mstore  // []
+
+    // load salt from calldata
+    returndatasize calldataload       // [salt]
+
+    DEPLOY()                          // [address]
+    stop
+}

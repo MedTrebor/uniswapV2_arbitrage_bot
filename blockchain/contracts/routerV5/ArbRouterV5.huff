@@ -1,0 +1,1142 @@
+/*
+Addresses of pairs and tokens are shifted 1 bit to left.
+When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half additional 1 bit right.
+*/
+
+#include "./Auth.huff"
+#include "./Pair.huff"
+#include "./Math.huff"
+#include "./ERC20.huff"
+#include "./WETH.huff"
+#include "./Withdrawal.huff"
+#include "./Beneficiaries.huff"
+
+#define macro CONSTRUCTOR() = takes (0) returns (0) {
+    // adding addresses to storage
+    0x79c9ceab93f24e3709cd62686399af3a1dc0b055  // [benef1]
+    returndatasize sstore                       // []
+    0xa9be8dcdb8c3ded879f28383b354f07944d43588  // [benef2]
+    0x01 sstore                                 // []
+}
+
+#define macro ARB0() = takes (0) returns (0) {
+    AUTHORIZE_BOT()  // []
+
+    LOAD0_96()                // [calldata[0:32], calldata[32:64], calldata[64:96]]
+    // getting pair0
+    dup1 0xf shl 0x60 shr     // [pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    // getting reserves to memory
+    RESERVES_SELECTOR()       // [pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    GET_RESERVES()            // [pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // getting amount_in0
+    dup2 0xb0 shl 0x90 shr    // [amount_in0[:10], pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    dup4 0xe0 shr             // [amount_in0[10:], amount_in0[:10], pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    add                       // [amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // getting is0_in0
+    dup4 0x30 shl 0xf8 shr      // [is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // getting fee_numerator0 and amount_in_fee0
+    dup5 0x20 shl 0xf0 shr      // [fee_numerator0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    dup3 mul                    // [amount_in_fee0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+  
+    // checking if token0 is token_in
+    dup2 arb0_is0_in0 jumpi     // [amount_in_fee0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    GET_AMOUNT_OUT(0x24, 0x04)  // [amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    ARB1()
+
+    arb0_is0_in0:
+        GET_AMOUNT_OUT(0x04, 0x24)  // [amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+        ARB1()
+}
+
+#define macro ARB1() = takes (7) returns (0) {
+    // continue exectution of arb
+    // takes [amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    
+    // getting pair1 and reserves
+    dup6 0x3f shl 0x60 shr  // [pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    GET_RESERVES()          // [pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // getting is0_in1
+    dup7 0xf0 shl 0xf8 shr  // [is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // getting fee_numerator1 and amount_in_fee1
+    dup8 0xe0 shl 0xf0 shr  // [fee_numerator1, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    dup4 mul                // [amount_in_fee1, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // checking if token0 is token_in
+    dup2 arb1_is0_in1 jumpi     // [amount_in_fee1, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    GET_AMOUNT_OUT(0x24, 0x04)  // [amount_out1, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+    ARB2()
+
+    arb1_is0_in1:
+        GET_AMOUNT_OUT(0x04, 0x24)  // [amount_out1, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+        ARB2()
+}
+
+#define macro ARB2() = takes (10) returns (0) {
+    // continue execution of arb
+    // takes [amount_out1, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, calldata[0:32], calldata[32:64], calldata[64:96]]
+
+    // getting selector and checkin if it's 2 swaps or 3 swaps
+    swap7           // [calldata[0:32], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, calldata[32:64], calldata[64:96]]
+    0xf8 shr        // [sel, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, calldata[32:64], calldata[64:96]]
+    dup1 0x03 gt    // [3>sel, sel, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, calldata[32:64], calldata[64:96]]
+
+    arb2_swaps jumpi  // [sel, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, calldata[32:64], calldata[64:96]]
+    ARB3_SWAPS0()
+
+    arb2_swaps:
+        ARB2_SWAPS()
+}
+
+#define macro ARB2_SWAPS() = takes (10) returns (0) {
+    // continue execution if there are 2 swaps
+    // takes: [sel, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, calldata[32:64], calldata[64:96]]
+    swap8               // [calldata[32:64], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // getting transaction cost
+    0xf8 shl 0x90 shr  // [tx_cost[:1], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    dup10 0x98 shr     // [tx_cost[1:], tx_cost[:1], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    add                // [tx_cost, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // checking profitability
+    dup8 lt            // [amount_out1<tx_cost, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    no_profit2 jumpi   // [is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // getting token_in0 address
+    swap8              // [calldata[64:96], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    0x6f shl 0x60 shr  // [token_in0[:19], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    0x60 calldataload  // [calldata[96:128], token_in0[:19], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    dup1 0xf1 shr      // [token_in0[19:], calldata[96:128], token_in0[:19], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    swap1 swap2        // [token_in0[:19], token_in0[19:], calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    add                // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+
+    // checking it it's flashloan or regular arbitrage
+    dup6 dup2           // [token_in0, amount_in0, token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    SELF_BLANCE()       // [balance, amount_in0, token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    lt                  // [balance<amount_in0, token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    flash_2swaps jumpi  // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+
+    REGULAR_2SWAPS0()
+
+    no_profit2:
+        swap7           // [sel, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, is0_in1, calldata[64:96]]
+        NO_PROFIT()
+
+    flash_2swaps:
+        FLASH_2SWAPS0()
+}
+
+#define macro REGULAR_2SWAPS0() = takes (10) returns (0) {
+    // execute regular arbitrage with 2 swaps
+
+    // takes: [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+
+    // transfering token in
+    TRANSFER_SELECTOR()  // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    dup7 0x04 mstore     // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    swap5 0x24 mstore    // [calldata[96:128], pair1, amount_out0, is0_in0, token_in0, pair0, amount_out1, sel, is0_in1]
+    swap4                // [token_in0, pair1, amount_out0, is0_in0, calldata[96:128], pair0, amount_out1, sel, is0_in1]
+    TRANSFER()           // [pair1, amount_out0, is0_in0, calldata[96:128], pair0, amount_out1, sel, is0_in1]
+
+    // storing swap selector and transfer_to(pair1) to memory
+    SWAP_SELECTOR()      // [pair1, amount_out0, is0_in0, calldata[96:128], pair0, amount_out1, sel, is0_in1]
+    dup1 0x44 mstore     // [pair1, amount_out0, is0_in0, calldata[96:128], pair0, amount_out1, sel, is0_in1]
+    swap4                // [pair0, amount_out0, is0_in0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+
+    // storing bytes offset to memory
+    0x80 0x64 mstore     // [pair0, amount_out0, is0_in0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+
+    // checking if token0 is token_in
+    swap2                         // [is0_in0, amount_out0, pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+    regular_2swaps_is0_in0 jumpi  // [amount_out0, pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out0
+    0x04 mstore               // [pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+    // amount1Out = 0
+    callvalue 0x24 mstore     // [pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+    // to = pair1 (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore          // [pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+
+    regular_2swaps0_cont jump // [pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+
+
+    regular_2swaps_is0_in0:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [amount_out0, pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+        // amount1Out = amount_out0
+        0x24 mstore            // [pair0, calldata[96:128], pair1, amount_out1, sel, is0_in1]
+        // to = pair1 (already stored)
+        // data = amount0Out (already at 0)
+
+    regular_2swaps0_cont:
+        // executing 1st swap
+        SWAP()            // [calldata[96:128], pair1, amount_out1, sel, is0_in1]
+        REGULAR_2SWAPS1()
+}
+
+#define macro REGULAR_2SWAPS1() = takes (5) returns (0) {
+    // execute 2nd swap
+    // takes: [calldata[96:128], pair1, amount_out1, sel, is0_in1]
+
+    // reorderig so is0_in1 is 1st and amount_out1 is 2nd in stack
+    swap2 swap1 swap4    // [is0_in1, amount_out1, calldata[96:128], sel, pair1]
+
+    // storing transfer_to(self) to memory
+    address 0x44 mstore  // [is0_in1, amount_out1, calldata[96:128], sel, pair1]
+
+    // checking if token0 is token_in
+    regular_2swaps_is0_in1 jumpi  // [amount_out1, calldata[96:128], sel, pair1]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out1
+    0x04 mstore               // [calldata[96:128], sel, pair1]
+    // amount1Out = 0
+    callvalue 0x24 mstore     // [calldata[96:128], sel, pair1]
+    // to = self.address (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore          // [calldata[96:128], sel, pair1]
+
+    regular_2swaps1_cont jump  // [calldata[96:128], sel, pair1]
+
+    regular_2swaps_is0_in1:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [amount_out1, calldata[96:128], sel, pair1]
+        // amount1Out = amount_out1
+        0x24 mstore            // [calldata[96:128], sel, pair1]
+        // to = self.address (already stored)
+        // data = amount0Out
+        // callvalue 0x64 mstore  // [calldata[96:128], sel, pair1]
+
+        // executing 2nd swap
+        swap2             // [pair1, sel, calldata[96:128]]
+        SWAP()            // [sel, calldata[96:128]]
+
+        REGULAR_2SWAPS2()
+
+    regular_2swaps1_cont:
+        // executing 2nd swap
+        swap2                // [pair1, sel, calldata[96:128]]
+        SWAP()               // [sel, calldata[96:128]]
+
+        REGULAR_2SWAPS2()
+}
+
+#define macro REGULAR_2SWAPS2() = takes (2) returns (0) {
+    // get burners length and burn contracts
+    // takes: [sel, calldata[96:128]]
+
+    // checking if token out is same as token in
+    0x02 eq                     // [diff==sel, calldata[96:128]]
+    regular_2swaps2_diff jumpi  // [calldata[96:128]]
+
+    // getting burners length
+    0xb8 shl 0xf8 shr           // [burners_len]
+
+    BURN_CONTRACTS(0x6c)
+
+    regular_2swaps2_diff:
+        // getting burners length
+        0x8c calldataload   // [calldata[140:172], calldata[96:128]]
+        0xf8 shr            // [burners_len, calldata[96:128]]
+
+        BURN_CONTRACTS(0x81)
+
+    // BURN CONTRACTS IF FORKING
+}
+
+#define macro FLASH_2SWAPS0() = takes (10) returns (0) {
+    // takes [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    
+    // adding selector, to and data offset to memory (args)
+    SWAP_SELECTOR()      // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    address 0x44 mstore  // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    0x80 0x64 mstore     // [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+
+    // CREATING CALLBACK DATA
+    // 164-196 (32 bytes)
+    swap2 0x60 shl     // [pair1[<<], calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    dup2               // [calldata[96:128], pair1[<<], calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    0x17 shl 0xa0 shr  // [token_out0[:12], pair1[<<], calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    add                // [data[164:196], calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    0xa4 mstore        // [calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+
+    // 196-228 (32 bytes)
+    dup1               // [calldata[96:128], calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    0x49 shr 0xc0 shl  // [token_out0[12:<<], calldata[96:128], token_in0, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
+    swap1 swap7        // [amount_out1, token_out0[12:<<], token_in0, amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, is0_in1]
+    0x50 shl           // [amount_out1[<<], token_out0[12:<<], token_in0, amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, is0_in1]
+    swap2 swap9        // [is0_in1, token_out0[12:<<], amount_out1[<<], amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]
+    0x48 shl           // [is0_in1[<<], token_out0[12:<<], amount_out1[<<], amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]
+    dup9 0x40 shl      // [sel[<<], is0_in1[<<], token_out0[12:<<], amount_out1[<<], amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]
+    dup8 0x60 shr      // [pair0[:8], sel[<<], is0_in1[<<], token_out0[12:<<], amount_out1[<<], amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]
+    add add add add    // [data[196:228], amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]              
+    0xc4 mstore        // [amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]
+
+    // 228-260 (32 bytes)
+    dup4 0xa0 shl      // [pair0[8:<<], amount_out0, is0_in0, amount_in0, pair0, calldata[96:128], sel, token_in0]
+    swap1 swap3        // [amount_in0, pair0[8:<<], is0_in0, amount_out0, pair0, calldata[96:128], sel, token_in0]
+    0x30 shl           // [amount_in0[<<], pair0[8:<<], is0_in0, amount_out0, pair0, calldata[96:128], sel, token_in0]
+    dup8 0x70 shr      // [token_in0[:6], amount_in0[<<], pair0[8:<<], is0_in0, amount_out0, pair0, calldata[96:128], sel, token_in0]
+    add add            // [data[228:260], is0_in0, amount_out0, pair0, calldata[96:128], sel, token_in0]
+    0xe4 mstore        // [is0_in0, amount_out0, pair0, calldata[96:128], sel, token_in0]
+
+    // 260-292 (32 bytes)
+    swap5 0x90 shl           // [token_in0[6:<<], amount_out0, pair0, calldata[96:128], sel, is0_in0]
+    swap1 swap4              // [sel, token_in0[6:<<], pair0, calldata[96:128], amount_out0, is0_in0]
+    0x02 eq                  // [diff==sel, token_in0[6:<<], pair0, calldata[96:128], amount_out0, is0_in0]
+    flash_2swaps_diff jumpi  // [token_in0[6:<<], pair0, calldata[96:128], amount_out0, is0_in0]
+    // same
+    0x0104 mstore            // [pair0, calldata[96:128], amount_out0, is0_in0]
+
+    // adding data length
+    0x6e 0x84 mstore         // [pair0, calldata[96:128], amount_out0, is0_in0]
+
+    // getting burners length
+    swap1 0xb8 shl 0xf8 shr  // [burners_len, pair0, amount_out0, is0_in0]
+
+    FLASH_2SWAPS1(0x0112, 0x6c)
+
+    flash_2swaps_diff:
+        // 260-292 (32 bytes)
+        swap1 swap2        // [calldata[96:128], token_in0[6:<<], pair0, amount_out0, is0_in0]
+        0xbf shl 0x70 shr  // [token_out1[:9>>], token_in0[6:<<], pair0, amount_out0, is0_in0]
+        0x80 calldataload  // [calldata[128:160], token_out1[:9], token_in0[6:<<], pair0, amount_out0, is0_in0]
+        dup1 0xb1 shr      // [token_out1[9:18], calldata[128:160], token_out1[:9>>], token_in0[6:<<], pair0, amount_out0, is0_in0]
+        swap1 swap3        // [token_in0[6:<<], token_out1[9:18], token_out1[:9>>], calldata[128:160], pair0, amount_out0, is0_in0]
+        add add            // [data[260:292], calldata[128:160], pair0, amount_out0, is0_in0]
+        0x0104 mstore      // [calldata[128:160], pair0, amount_out0, is0_in0]
+
+        // 292-324 (2 bytes)
+        dup1 0x4f shl      // [token_out1[9:<<]++, calldata[128:160], pair0, amount_out0, is0_in0]
+        0x0124 mstore      // [calldata[128:160], pair0, amount_out0, is0_in0]
+
+        // adding data length
+        0x82 0x84 mstore   // [calldata[128:160], pair0, amount_out0, is0_in0]
+
+        // getting burners length
+        0x60 shl 0xf8 shr  // [burners_len, pair0, amount_out0, is0_in0]
+
+        FLASH_2SWAPS1(0x0126, 0x81)
+}
+
+#define macro FLASH_2SWAPS1(args_len, first_burner_loc) = takes (4) returns (0) {
+    // execute flash swap
+    // takes: [burners_len, pair0, amount_out0, is0_in0]
+
+    // arranging data on stack (swap call args arrange)
+    swap3 swap1  // [pair0, is0_in0, amount_out0, burners_len]
+    callvalue    // [args_offset, pair0, is0_in0, amount_out0, burners_len]
+    callvalue    // [value, args_offset, pair0, is0_in0, amount_out0, burners_len]
+    <args_len>   // [args_size, value, args_offset, pair0, is0_in0, amount_out0, burners_len]
+    swap3        // [pair0, value, args_offset, args_size, is0_in0, amount_out0, burners_len]
+    gas          // [gas, pair0, value, args_offset, args_size, is0_in0, amount_out0, burners_len]
+    callvalue    // [ret_size, gas, pair0, value, args_offset, args_size, is0_in0, amount_out0, burners_len]
+    swap7        // [amount_out0, gas, pair0, value, args_offset, args_size, is0_in0, ret_size, burners_len]
+    callvalue    // [ret_offset, amount_out0, gas, pair0, value, args_offset, args_size, is0_in0, ret_size, burners_len]
+    swap7        // [is0_in0, amount_out0, gas, pair0, value, args_offset, args_size, ret_offset, ret_size, burners_len]
+
+    flash_2swaps1_is0_in0 jumpi  // [amount_out0, gas, pair0, value, args_offset, args_size, ret_offset, ret_size, burners_len]
+    // adding amounts out and executing
+
+    // TOKEN0 IS TOKEN_OUT
+    // amount0Out = amount_out0
+    0x04 mstore       // [gas, pair0, value, args_offset, args_size, ret_offset, ret_size, burners_len]
+    // amount1Out = 0
+    dup3 0x24 mstore  // [gas, pair0, value, args_offset, args_size, ret_offset, ret_size, burners_len]
+
+    // call pop          // [burners_len]
+    call iszero       // [success==0, burners_len]
+    fail jumpi        // [burners_len]
+
+    BURN_CONTRACTS(<first_burner_loc>)
+
+    flash_2swaps1_is0_in0:
+        // TOKEN1 IS TOKEN_OUT
+        // amount0Out = 0
+        dup4 0x04 mstore  // [amount_out0, gas, pair0, value, args_offset, args_size, ret_offset, ret_size, burners_len]
+        // amount1Out = amount_out0
+        0x24 mstore       // [gas, pair0, value, args_offset, args_size, ret_offset, ret_size, burners_len]
+
+        // call pop          // [burners_len]
+        call iszero       // [success==0, burners_len]
+        fail jumpi        // [burners_len]
+
+        BURN_CONTRACTS(<first_burner_loc>)
+}
+
+#define macro ARB3_SWAPS0() = takes (10) returns (0) {
+    // continue exectuion if there are 3 swaps
+    // takes [sel, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, calldata[32:64], calldata[64:96]]
+
+    // getting pair2 and reserves
+    swap8               // [calldata[32:64], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    0xff shl 0x60 shr   // [pair2[1bit], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    dup10 0x61 shr      // [pair2[1bit:], pair2[1bit], is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    add                 // [pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    GET_RESERVES()      // [pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // getting is0_in2
+    dup10               // [calldata[64:96], pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    0xb0 shl 0xf8 shr   // [is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // getting fee_numerator2 and amount_in_fee2
+    dup11               // [calldata[64:96], is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    0xa0 shl 0xf0 shr   // [fee_numerator2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    dup10 mul           // [amount_in_fee2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    dup2 arb3_is0_in2 jumpi  // [amount_in_fee2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    GET_AMOUNT_OUT(0x24, 0x04)  // [amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+    ARB3_SWAPS1()
+
+    arb3_is0_in2:
+        GET_AMOUNT_OUT(0x04, 0x24)  // [amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+        ARB3_SWAPS1()
+}
+
+#define macro ARB3_SWAPS1() = takes (12) returns (0) {
+    // check if arb with 3 swaps is profitable
+    // takes: [amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // loading calldata[96:128]
+    0x60 calldataload  // [calldata[96:128], amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+
+    // getting transaction cost
+    swap12             // [calldata[64:96], amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+    0xb8 shl 0x90 shr  // [tx_cost[:9], amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+    dup13 0xd8 shr     // [tx_cost[9:], tx_cost[:9], amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+    add                // [tx_cost, amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+
+    // checking profitability
+    dup2 lt            // [amount_out2<tx_cost, amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+    no_profit3 jumpi   // [amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+
+    // FIXING BUG (STACK ORDER)
+    swap10             // [sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // getting token_in0 address
+    dup12              // [calldata[96:128], sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    0x2f shl 0x60 shr  // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]   
+
+    // checking if it's flashloan or regular arbitrage
+    dup9 dup2           // [token_in0, amount_in0, token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    SELF_BLANCE()       // [balance, amount_in0, token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    lt                  // [balance<amount_in0, token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    flash_3swaps jumpi  // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    REGULAR_3SWAPS0()
+
+    no_profit3:
+        swap10          // [sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+        NO_PROFIT()
+
+    flash_3swaps:
+        FLASH_3SWAPS0()
+}
+
+#define macro REGULAR_3SWAPS0() = takes (13) returns (0) {
+    // execute regular arbitrage with 3 swaps
+    // takes: [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // transfering token_in
+    TRANSFER_SELECTOR()  // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    dup10 0x04 mstore    // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    swap8                // [amount_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, token_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    0x24 mstore          // [sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, token_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    swap7                // [token_in0, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+    TRANSFER()           // [is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // storing swap selector and transfer_to(pair1) to memory
+    SWAP_SELECTOR()      // [is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+    dup4 0x44 mstore     // [is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // storing bytes offset to memory
+    0x80 0x64 mstore     // [is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // checking if token0 is token_in
+    swap5                         // [is0_in0, pair2, is0_in1, pair1, amount_out0, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+    regular_3swaps_is0_in0 jumpi  // [pair2, is0_in1, pair1, amount_out0, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out0
+    swap3 0x04 mstore       // [is0_in1, pair1, pair2, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+    // amount1Out = 0
+    callvalue 0x24 mstore   // [is0_in1, pair1, pair2, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+    // to = pair1 (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore        // [is0_in1, pair1, pair2, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    regular_3swaps0_cont jump  // [is0_in1, pair1, pair2, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    regular_3swaps_is0_in0:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [pair2, is0_in1, pair1, amount_out0, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+        // amount1Out = amount_out0
+        swap3 0x24 mstore      // [is0_in1, pair1, pair2, is0_in2, sel, pair0, amount_out1, amount_out2, calldata[96:128]]
+        // to = pair1 (already stored)
+        // data = amount0Out (already at 0)
+
+    regular_3swaps0_cont:
+        // executing 1st swap
+        swap5                // [pair0, pair1, pair2, is0_in2, sel, is0_in1, amount_out1, amount_out2, calldata[96:128]]
+        SWAP()               // [pair1, pair2, is0_in2, sel, is0_in1, amount_out1, amount_out2, calldata[96:128]]
+
+        REGULAR_3SWAPS1()
+}
+
+#define macro REGULAR_3SWAPS1() = takes (8) returns (0) {
+    // execute 2nd swap
+    // takes: [pair1, pair2, is0_in2, sel, is0_in1, amount_out1, amount_out2, calldata[96:128]]
+
+    // reordering so is0_in1 is 1st and amount_out1 is 2nd in stack
+    swap5 swap1 swap4  // [is0_in1, amount_out1, is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+
+    // storing transfer_to (pair2) to memory
+    dup5 0x44 mstore   // [is0_in1, amount_out1, is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+
+    // checking if token0 is token_in
+    regular_3swaps_is0_in1 jumpi  // [amount_out1, is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out1
+    0x04 mstore            // [is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+    // amount1Out = 0
+    callvalue 0x24 mstore  // [is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+    // to = pair2 (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore       // [is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+
+    regular_3swaps1_cont jump  // [is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+
+    regular_3swaps_is0_in1:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [amount_out1, is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+        // amount1Out = amount_out1
+        0x24 mstore            // [is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+        // to = pair2 (already stored)
+        // data = amount0Out
+        // callvalue 0x64 mstore  // [is0_in2, sel, pair2, pair1, amount_out2, calldata[96:128]]
+
+    regular_3swaps1_cont:
+        // executing 2nd swap
+        swap3              // [pair1, sel, pair2, is0_in2, amount_out2, calldata[96:128]]
+        SWAP()             // [sel, pair2, is0_in2, amount_out2, calldata[96:128]]
+
+        REGULAR_3SWAPS2()
+}
+
+#define macro REGULAR_3SWAPS2() = takes (5) returns (0) {
+    // execute 3rd swap
+    // takes: [sel, pair2, is0_in2, amount_out2, calldata[96:128]]
+
+    // storing transfer_to(self) to memory
+    address 0x44 mstore  // [sel, pair2, is0_in2, amount_out2, calldata[96:128]]
+
+    // checing if token0 is token_in
+    swap2 regular_3swaps_is0_in2 jumpi  // [pair2, sel, amount_out2, calldata[96:128]]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out2
+    swap2 0x04 mstore      // [sel, pair2, calldata[96:128]]
+    // amount1Out = 0
+    callvalue 0x24 mstore  // [sel, pair2, calldata[96:128]]
+    // to = self.address (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore       // [sel, pair2, calldata[96:128]]
+
+    regular_3swaps2_cont jump  // [sel, pair2, calldata[96:128]]
+
+    regular_3swaps_is0_in2:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [pair2, sel, amount_out2, calldata[96:128]]
+        // amount1Out = amount_out2
+        swap2 0x24 mstore      // [sel, pair2, calldata[96:128]]
+        // to = self.address (already stored)
+        // data = amount0Out
+        // callvalue 0x64 mstore  // [sel, pair2, calldata[96:128]]
+
+    regular_3swaps2_cont:
+        // executing 3rd swap
+        swap1 SWAP()           // [sel, calldata[96:128]]
+
+        REGULAR_3SWAPS3()
+}
+
+#define macro REGULAR_3SWAPS3() = takes (1) returns (0) {
+    // get burners length and burn contracts
+    // takes: [sel]
+
+    // checking if token out is same as token in
+    0x04 eq                     // [diff==sel]
+    regular_3swaps3_diff jumpi  // []
+
+    // getting burners length
+    0x8f calldataload           // [calldata[143:175]]
+    0xf8 shr                    // [burners_len]
+
+    BURN_CONTRACTS(0x84)
+
+    regular_3swaps3_diff:
+        // getting burners length
+        0xa4 calldataload       // [calldata[164:196]]
+        0xf8 shr                // [burners_len]
+
+        BURN_CONTRACTS(0x99)
+}
+
+#define macro FLASH_3SWAPS0() = takes(13) returns (0) {
+    // crete arguments for flash swap
+    // takes: [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // adding selector, to and data offset to memory (args)
+    SWAP_SELECTOR()      // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    address 0x44 mstore  // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    0x80 0x64 mstore     // [token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    0x80 calldataload    // [calldata[128:160], token_in0, sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+
+    // CREATING CALLBACK DATA
+    // 164-196 (32 bytes)
+    swap6 0x60 shl       // [pair1[<<], token_in0, sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+    swap1 swap13         // [calldata[96:128], pair1[<<], sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+    0xd7 shl 0xa0 shr    // [token_out[:6], pair1[<<], sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+    dup7 0xc9 shr        // [token_out[5:12], token_out[:6], pair1[<<], sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+    add add              // [data[164:196], sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+    0xa4 mstore          // [sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+
+    // 196-228 (32 bytes)
+    dup5                 // [calldata[128:160], sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+    0x89 shr 0xc0 shl    // [token_out[12:<<], sel, is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, token_in0]
+    swap1 swap10         // [amount_out1, token_out[12:<<], is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    0x50 shl             // [amount_out1[<<], token_out[12:<<], is0_in2, pair2, is0_in1, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    swap2 swap4          // [is0_in1, token_out[12:<<], amount_out1[<<], pair2, is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    0x48 shl             // [is0_in1[<<], token_out[12:<<], amount_out1[<<], pair2, is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    dup11 0x40 shl       // [sel[<<], is0_in1[<<], token_out[12:<<], amount_out1[<<], pair2, is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    dup5 0x60 shr        // [pair2[:8], sel[<<], is0_in1[<<], token_out[12:<<], amount_out1[<<], pair2, is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    add add add add      // [data[196:228], pair2, is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    0xc4 mstore          // [pair2, is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+
+    // 228-260 (32 bytes)
+    0xa0 shl             // [pair2[8:], is0_in2, calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    swap1 0x28 shl       // [is0_in2[<<], pair2[8:], calldata[128:160], amount_out0, is0_in0, amount_in0, pair0, sel, amount_out2, token_in0]
+    swap2 swap8          // [amount_out2, pair2[8:], is0_in2[<<], amount_out0, is0_in0, amount_in0, pair0, sel, calldata[128:160], token_in0]
+    0x30 shl             // [amount_out2[<<], pair2[8:], is0_in2[<<], amount_out0, is0_in0, amount_in0, pair0, sel, calldata[128:160], token_in0]
+    dup7 0x78 shr        // [pair0[:5], amount_out2[<<], pair2[8:], is0_in2[<<], amount_out0, is0_in0, amount_in0, pair0, sel, calldata[128:160], token_in0]
+    add add add          // [data[228:260], amount_out0, is0_in0, amount_in0, pair0, sel, calldata[128:160], token_in0]
+    0xe4 mstore          // [amount_out0, is0_in0, amount_in0, pair0, sel, calldata[128:160], token_in0]
+
+    // 260-292 (32 bytes)
+    dup4 0x88 shl        // [pair0[5:<<], amount_out0, is0_in0, amount_in0, pair0, sel, calldata[128:160], token_in0]
+    swap1 swap3          // [amount_in0, pair0[5:<<], is0_in0, amount_out0, pair0, sel, calldata[128:160], token_in0]
+    0x18 shl             // [amount_in0[<<], pair0[5:<<], is0_in0, amount_out0, pair0, sel, calldata[128:160], token_in0]
+    dup8 0x88 shr        // [token_in0[:3], amount_in0[<<], pair0[5:<<], is0_in0, amount_out0, pair0, sel, calldata[128:160], token_in0]
+    add add              // [data[260:292], is0_in0, amount_out0, pair0, sel, calldata[128:160], token_in0]
+    0x0104 mstore        // [is0_in0, amount_out0, pair0, sel, calldata[128:160], token_in0]
+
+    // 292-324 (32 bytes)
+    swap5 0x78 shl            // [token_in0[3:<<], amount_out0, pair0, sel, calldata[128:160], is0_in0]
+    swap1 swap3               // [sel, token_in0[3:<<], pair0, amount_out0, calldata[128:160], is0_in0]
+    0x04 eq                   // [diff==sel, token_in0[3:<<], pair0, amount_out0, calldata[128:160], is0_in0]
+    flash_3swaps0_diff jumpi  // [token_in0[3:<<], pair0, amount_out0, calldata[128:160], is0_in0]
+    //same
+    0x0124 mstore             // [pair0, amount_out0, calldata[128:160], is0_in0]
+
+    // adding data length
+    0x91 0x84 mstore          // [pair0, amount_out0, calldata[128:160], is0_in0]
+
+    // getting burners length
+    swap2                     // [calldata[128:160], amount_out0, pair0, is0_in0]
+    0x78 shl 0xf8 shr         // [burners_len, amount_out0, pair0, is0_in0]
+
+    FLASH_3SWAPS1(0x0135, 0x84)
+
+
+    flash_3swaps0_diff:
+        dup4               // [calldata[128:160], token_in0[3:<<], pair0, amount_out0, calldata[128:160], is0_in0]
+        0x7f shl 0x88 shr  // [token_out2[:15], token_in0[3:<<], pair0, amount_out0, calldata[128:160], is0_in0]
+        add                // [data[292:324], pair0, amount_out0, calldata[128:160], is0_in0]
+        0x0124 mstore      // [pair0, amount_out0, calldata[128:160], is0_in0]
+
+        // 324-329 (5 bytes)
+        0xa0 calldataload  // [calldata[160:192], pair0, amount_out0, calldata[128:160], is0_in0]
+        swap1 swap3        // [calldata[128:160], calldata[160:192], amount_out0, pair0, is0_in0]
+        0xf7 shl           // [token_out[15:16.1<<], calldata[160:192], amount_out0, pair0, is0_in0]
+        dup2               // [calldata[160:192], token_out[15:16.1<<], calldata[160:192], amount_out0, pair0, is0_in0]
+        0xe1 shr 0xd8 shl  // [token_out[16.1:<<], token_out[15:16.1<<], calldata[160:192], amount_out0, pair0, is0_in0]
+        add                // [token_out[15:<<], calldata[160:192], amount_out0, pair0, is0_in0]
+        0x0144 mstore      // [calldata[160:192], amount_out0, pair0, is0_in0]
+
+        // adding data length
+        0xa5 0x84 mstore   // [calldata[160:192], amount_out0, pair0, is0_in0]
+
+        // getting burners length
+        0x20 shl 0xf8 shr  // [burners_len, amount_out0, pair0, is0_in0]
+
+        FLASH_3SWAPS1(0x0149, 0x99)
+}
+
+#define macro FLASH_3SWAPS1(args_len, first_burner_loc) = takes (4) returns (0) {
+    // execute flash swap
+    // takes: [burners_len, amount_out0, pair0, is0_in0]
+
+    // arranging data on stack (swap call args arrange) - target: [is0_in0, amount_out0, calldata..., burners_len]
+    swap3         // [is0_in0, amount_out0, pair0, burners_len]
+    callvalue     // [args_offset, is0_in0, amount_out0, pair0, burners_len]
+    callvalue     // [value, args_offset, is0_in0, amount_out0, pair0, burners_len]
+    callvalue     // [ret_size, value, args_offset, is0_in0, amount_out0, pair0, burners_len]
+    swap5         // [pair0, value, args_offset, is0_in0, amount_out0, ret_size, burners_len]
+    gas           // [gas, pair0, value, args_offset, is0_in0, amount_out0, ret_size, burners_len]
+    callvalue     // [return_offset, gas, pair0, value, args_offset, is0_in0, amount_out0, ret_size, burners_len]
+    swap6         // [amount_out0, gas, pair0, value, args_offset, is0_in0, return_offset, ret_size, burners_len]
+    <args_len>    // [args_size, amount_out0, gas, pair0, value, args_offset, is0_in0, return_offset, ret_size, burners_len]
+    swap6         // [is0_in0, amount_out0, gas, pair0, value, args_offset, args_size, return_offset, ret_size, burners_len]
+
+    flash_3swaps1_is0_in0 jumpi // [amount_out0, gas, pair0, value, args_offset, args_size, return_offset, ret_size, burners_len]
+
+    // TOKEN0 IS TOKEN_OUT
+    // amount0Out = amount_out0
+    0x04 mstore            // [gas, pair0, value, args_offset, args_size, return_offset, ret_size, burners_len]
+    // amount1Out = 0
+    callvalue 0x24 mstore  // [gas, pair0, value, args_offset, args_size, return_offset, ret_size, burners_len]
+
+    // call pop               // [burners_len]
+    call iszero            // [success==0, burners_len]
+    fail jumpi             // [burners_len]
+
+    BURN_CONTRACTS(<first_burner_loc>)
+
+    flash_3swaps1_is0_in0:
+        // TOKEN1 IS TOKEN_OUT
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [amount_out0, gas, pair0, value, args_offset, args_size, return_offset, ret_size, burners_len]
+        // amount1Out = amount_out0
+        0x24 mstore            // [gas, pair0, value, args_offset, args_size, return_offset, ret_size, burners_len]
+
+        // call pop               // [burners_len]
+        call iszero            // [success==0, burners_len]
+        fail jumpi             // [burners_len]
+
+        BURN_CONTRACTS(<first_burner_loc>)
+}
+
+#define macro ARB_CALLBACK() = takes (0) returns (0) {
+    // execute flash arbitrage callback
+    AUTHORIZE_BOT()      // []
+
+    // getting pair1
+    0xa4 calldataload    // [pair1[<<]]
+    0x60 shr             // [pair1]
+
+    // getting amount_out0
+    0x24 calldataload    // [amount0_out0, pair1]
+    0x44 calldataload    // [amount1_out0, amount0_out0, pair1]
+    add                  // [amount_out0, pair1]
+    
+    // transfering token_out0 to pair1
+    TRANSFER_SELECTOR()  // [amount_out0, pair1]
+    0x24 mstore          // [pair1]
+    dup1 0x04 mstore     // [pair1]
+    0xac calldataload    // [token_out0, pair1]
+    CHECKED_TRANSFER()   // [pair1]
+
+    // getting selector, is0_in1, amount_out1
+    0xcc calldataload    // [amount_out1[<<], pair1]
+    0x90 shr             // [amount_out1, pair1]
+    0xda calldataload    // [is0_in1[<<], amount_out1, pair1]
+    0xf8 shr             // [is0_in1, amount_out1, pair1]
+    0xdb calldataload    // [sel[<<], is0_in1, amount_out1, pair1]
+    0xf8 shr             // [sel, is0_in1, amount_out1, pair1]
+
+    // storing swap selector
+    SWAP_SELECTOR()      // [sel, is0_in1, amount_out1, pair1]
+
+    // storing bytes offset to memory
+    0x80 0x64 mstore     // [sel, is0_in1, amount_out1, pair1]
+
+    // checking for swap_count
+    0x03 dup2 lt          // [sel<3, sel, is0_in1, amount_out1, pair1]
+    callback_1swap jumpi  // [sel, is0_in1, amount_out1, pair1]
+
+    CALLBACK2()
+
+    callback_1swap:
+        CALLBACK1()
+}
+
+#define macro CALLBACK1() = takes (4) returns (0) {
+    // execute 1 swap
+    // takes: [sel, is0_in1, amount_out1, pair1]
+
+    // adding to argument; to=self
+    address 0x44 mstore  // [sel, is0_in1, amount_out1, pair1]
+
+    // getting amount_out position
+    swap1                    // [is0_in1, sel, amount_out1, pair1]
+    callback1_is0_in1 jumpi  // [sel, amount_out1, pair1]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out1
+    swap1 0x04 mstore      // [sel, pair1]
+    // amount1Out = 0
+    callvalue 0x24 mstore  // [sel, pair1]
+    // to = self (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore       // [sel, pair1]
+
+    callback1_cont jump    // [sel, pair1]
+
+    callback1_is0_in1:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [sel, amount_out1, pair1]
+        // amount1Out = amount_out1
+        swap1 0x24 mstore      // [sel, pair1]
+        // to = pair1 (already stored)
+        // data = amount0Out (already at 0)
+
+    callback1_cont:
+
+    // swapping
+    swap1    // [pair1, sel]
+    SWAP()   // [sel]
+
+    // checking for rewrap
+    0x02 eq                 // [sel==diff]
+    callback1_rewrap jumpi  // []
+
+    // getting token_in0, amount_in0
+    0xf2 calldataload       // [token_in0]
+    0xf0 calldataload       // [amount_in0[<<], token_in0]
+    0x90 shr                // [amount_in0, token_in0]
+
+    // returning loan
+    RETURN_LOAN()            // []
+    stop
+
+    callback1_rewrap:
+        // rerwrapping eth
+        REWRAP(0xf0, 0x0106, 0xf2)  // [amount_in0, token_in0]
+
+        // returning loan
+        RETURN_LOAN()               // []
+        stop
+}
+
+#define macro CALLBACK2() = takes (4) returns (0) {
+    // execute 2 swaps
+    // takes: [sel, is0_in1, amount_out1, pair1]
+
+    // getting pair2
+    0xdc calldataload  // [pair2[<<], sel, is0_in1, amount_out1, pair1]
+    0x60 shr           // [pair2, sel, is0_in1, amount_out1, pair1]
+
+    // adding to argument; to=pair2
+    dup1 0x44 mstore   // [pair2, sel, is0_in1, amount_out1, pair1]
+
+    // getting amount_out position
+    swap2                    // [is0_in1, sel, pair2, amount_out1, pair1]
+    callback2_is0_in1 jumpi  // [sel, pair2, amount_out1, pair1]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out1
+    swap2 0x04 mstore        // [sel, pair2, pair1]
+    // amount1Out = 0
+    callvalue 0x24 mstore    // [sel, pair2, pair1]
+    // to = pair2 (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore         // [sel, pair2, pair1]
+
+    callback2_cont1 jump     // [sel, pair2, pair1]
+
+    callback2_is0_in1:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [sel, pair2, amount_out1, pair1]
+        // amount1Out = amount_out1
+        swap2 0x24 mstore      // [pair2, sel, pair1]
+        // to = pair1 (already stored)
+        // data = amount0Out (already at 0)
+    
+    callback2_cont1:
+
+    // swapping
+    swap2                    // [pair1, sel, pair2]
+    SWAP()                   // [sel, pair2]
+    swap1                    // [pair2, sel]
+
+    // getting amount_out2 and is0_in2
+    0xf0 calldataload        // [amount_out2[<<], pair2, sel]
+    0x90 shr                 // [amount_out2, pair2, sel]
+    0xfe calldataload        // [is0_in2[<<], amount_out2, pair2, sel]
+    0xf8 shr                 // [is0_in2, amount_out2, pair2, sel]
+
+    // adding to argument; to=self
+    address 0x44 mstore      // [is0_in2, amount_out2, pair2, sel]
+
+    // getting amount_out position
+    callback2_is0_in2 jumpi  // [amount_out2, pair2, sel]
+
+    // TOKEN0 IS TOKEN_OUT
+    // creating arguments for swap
+    // amount0Out = amount_out2
+    0x04 mstore              // [pair2, sel]
+    // amount1Out = 0
+    callvalue 0x24 mstore    // [pair2, sel]
+    // to = self (already stored)
+    // data = amount1Out
+    // 0x20 0x64 mstore         // [pair2, sel]
+
+    callback_cont2 jump      // [pair2, sel]
+
+    callback2_is0_in2:
+        // TOKEN1 IS TOKEN_OUT
+        // creating arguments for swap
+        // amount0Out = 0
+        callvalue 0x04 mstore  // [amount_out2, pair2, sel]
+        // amount1Out = amount_out2
+        0x24 mstore            // [pair2, sel]
+        // to = self (already stored)
+        // data = amount0Out
+        // callvalue 0x64 mstore  // [pair2, sel]
+
+    callback_cont2:
+
+    // swapping
+    SWAP()                  // [sel]
+
+    // checking for rewrap
+    0x04 eq                 // [sel==diff]
+    callback2_rewrap jumpi  // []
+
+    // getting token_in0, amount_in0
+    0x0115 calldataload     // [token_in0]
+    0x0113 calldataload     // [amount_in0[<<], token_in0]
+    0x90 shr                // [amount_in0, token_in0]
+
+    // returning loan
+    RETURN_LOAN()           // []
+    stop
+
+    callback2_rewrap:
+        // rewrapping eth
+        REWRAP(0x0113, 0x0129, 0x0115)  // [amount_in0, token_in0]
+
+        // returning loan
+        RETURN_LOAN()                   // []
+        stop
+}
+
+
+#define macro RETURN_LOAN() = takes (2) returns (0) {
+    // return flash loan
+    // takes: [amount_in0, token_in0]
+
+    TRANSFER_SELECTOR()  // [amount_in0, token_in0]
+    caller 0x04 mstore   // [amount_in0, token_in0]
+    0x24 mstore          // [token_in0]
+    TRANSFER()           // []
+}
+
+#define macro REWRAP(amount_in_ptr, token_out_ptr, token_in_ptr) = takes (0) returns (2) {
+    // rewrap weth
+
+    // witdraw
+    <amount_in_ptr> calldataload  // [amount_in[<<]]
+    0x90 shr                      // [amount_in]
+    <token_out_ptr> calldataload  // [token_out, amount_in]
+    dup2                          // [amount_in, token_out, amount_in]
+    WETH_WITHDRAW()               // [amount_in]
+
+    // deposit
+    <token_in_ptr> calldataload   // [token_in, amount_in]
+    dup1 dup3                     // [amount_in, token_in, token_in, amount_in]
+    WETH_DEPOSIT()                // [token_in, amount_in]
+    swap1                         // [amount_in, token_in]
+}
+
+#define macro NO_PROFIT() = takes (1) returns (0) {
+    // burn 1 burner and stop execution
+    // takes [sel]
+    dup1 0x03 eq           // [sel==0x03, sel]
+    swap3_same_stop jumpi  // [sel]
+
+    dup1 0x01 eq           // [sel==0x01, sel]
+    swap2_same_stop jumpi  // [sel]
+
+    dup1 0x04 eq           // [sel==0x04, sel]
+    swap3_diff_stop jumpi  // [sel]
+
+    BURN_AND_STOP(0x81)
+
+    swap3_same_stop:
+        BURN_AND_STOP(0x84)
+    swap2_same_stop:
+        BURN_AND_STOP(0x6c)
+    swap3_diff_stop:
+        BURN_AND_STOP(0x99)
+}
+
+#define macro BURN_CONTRACTS(first_burner_loc) = takes (1) returns (4) {
+    // burn contracts and stop
+    // takes: [burners_len]
+
+    // arranging stack for burn_loop
+    0x14 0x01 swap2     // [burners_len, 20, 1]
+    <first_burner_loc>  // [burner_load, burners_len, 20, 1]
+
+    burn_loop:
+        // burning contract
+        BURNER_ARGS()      // [value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
+        dup6 calldataload  // [address, value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
+        gas                // [gas, address, value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
+        call pop           // [burner_load, burners_len, 20, 1]
+
+        // decrementing counter
+        dup4 swap1 swap2   // [burners_len, 1, burner_load, 20, 1]
+        sub                // [burners_len, burner_load, 20, 1]
+
+        // checking for end
+        dup1 iszero        // [burners_len==0, burners_len, burner_load, 20, 1]
+        end_burn jumpi     // [burners_len, burner_load, 20, 1]
+
+        // incrementing burner_load by 20
+        swap1 dup3         // [20, burner_load, burners_len, 20, 1]
+        add                // [burner_load, burners_len, 20, 1]
+
+        burn_loop jump     // [burner_load, burners_len, 20, 1]
+
+    end_burn:
+        stop
+}   
+
+#define macro BURN_AND_STOP(burner) = takes (0) returns (1) {
+    // load burner at calldata(burner), burn it and stop
+    BURNER_ARGS()          // [value, args_offset, args_size, ret_offset, ret_size]
+    <burner> calldataload  // [address, args_offset, args_size, ret_offset, ret_size]
+    gas                    // [gas, address, args_offset, args_size, ret_offset, ret_size]
+    call                   // [success]
+    0x01                   // [size, success]
+    callvalue              // [offset, size, success]
+    return
+}
+
+#define macro BURNER_ARGS() = takes (0) returns (5) {
+    // add burn arguments that come before address
+    callvalue  // [ret_size]
+    callvalue  // [ret_offset, ret_size]
+    callvalue  // [args_size, ret_offset, ret_size]
+    callvalue  // [args_offset, args_size, ret_offset, ret_size]
+    callvalue  // [value, args_offset, args_size, ret_offset, ret_size]
+}
+
+#define macro LOAD0_96() = takes (0) returns (3) {
+    // load first 96 bytes from calldata
+    0x40 calldataload       // [calldata[64:96]]
+    0x20 calldataload       // [calldata[32:64], calldata[64:96]]
+    callvalue calldataload  // [calldata[0:32], calldata[32:64], calldata[64:96]]
+}
+
+#define macro MAIN() = takes (0) returns (1) {
+    // check for length to see if it's arb or others
+    0x36 calldatasize lt  // []
+    check_payment jumpi   // []
+
+    // ARBITRAGE FUNCTIONS
+    // check if it's callback by loading first argument
+    0x04 calldataload   // [2nd_arg]
+    address eq          // [2nd_arg==self.address]
+    arb_callback jumpi  // []
+
+    // arbitrage
+    ARB0()
+
+    arb_callback:
+        ARB_CALLBACK()
+
+    check_payment:
+        callvalue iszero  // [callvalue==0]
+        other jumpi       // []
+        stop
+
+    other:
+        // checking for selfdestruct
+        calldatasize iszero   // [calldatasize==0]
+        self_destruct jumpi   // []
+
+        // extracting selector
+        callvalue calldataload  // [calldata[0:32]]
+        0xf8 shr                // [sel]
+
+        // selecting function
+        dup1 iszero             // [sel==0, sel]
+        unwrap_withdraw jumpi   // [sel]
+
+        dup1 0x14 eq            // [sel==withdraw, sel]
+        withdraw jumpi          // [sel]
+
+        dup1 0x15 eq            // [sel==withdraw_eth, sel]
+        withdraw_eth jumpi      // [sel]
+
+        dup1 0x11 eq            // [sel==set_benef1, sel]
+        set_beneficiary1 jumpi  // [sel]
+
+        0x12 eq                 // [sel==set_benef2]
+        set_beneficiary2 jumpi  // []
+
+        stop
+
+    unwrap_withdraw:
+        UNWRAP_WITHDRAW()
+
+    withdraw:
+        WITHDRAW()
+
+    withdraw_eth:
+        WITHDRAW_ETH()
+
+    set_beneficiary1:
+        SET_BENEFICIARY1()
+
+    set_beneficiary2:
+        SET_BENEFICIARY2()
+
+    self_destruct:
+        AUTHORIZE_BOT()
+        origin selfdestruct
+
+    unauthorized:
+        UNAUTHORIZED()
+
+    witdraw_fail:
+        WITHDRAWAL_FAILED()
+
+    fail:
+       callvalue callvalue revert 
+}
