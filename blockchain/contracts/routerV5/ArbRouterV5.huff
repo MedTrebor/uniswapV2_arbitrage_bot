@@ -125,8 +125,10 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     REGULAR_2SWAPS0()
 
     no_profit2:
-        swap7           // [sel, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, is0_in1, calldata[64:96]]
-        NO_PROFIT()
+        // swap7           // [sel, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, is0_in1, calldata[64:96]]
+        // NO_PROFIT()
+        0x01 callvalue     // [offset, size, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[64:96]]
+        return             // return 1st byte to indicate no profit
 
     flash_2swaps:
         FLASH_2SWAPS0()
@@ -225,38 +227,40 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
         swap2             // [pair1, sel, calldata[96:128]]
         SWAP()            // [sel, calldata[96:128]]
 
-        REGULAR_2SWAPS2()
+        // REGULAR_2SWAPS2()
+        stop  // no buring
 
     regular_2swaps1_cont:
         // executing 2nd swap
         swap2                // [pair1, sel, calldata[96:128]]
         SWAP()               // [sel, calldata[96:128]]
 
-        REGULAR_2SWAPS2()
+        // REGULAR_2SWAPS2()
+        stop  // no buring
 }
 
-#define macro REGULAR_2SWAPS2() = takes (2) returns (0) {
-    // get burners length and burn contracts
-    // takes: [sel, calldata[96:128]]
+// #define macro REGULAR_2SWAPS2() = takes (2) returns (0) {
+//     // get burners length and burn contracts
+//     // takes: [sel, calldata[96:128]]
 
-    // checking if token out is same as token in
-    0x02 eq                     // [diff==sel, calldata[96:128]]
-    regular_2swaps2_diff jumpi  // [calldata[96:128]]
+//     // checking if token out is same as token in
+//     0x02 eq                     // [diff==sel, calldata[96:128]]
+//     regular_2swaps2_diff jumpi  // [calldata[96:128]]
 
-    // getting burners length
-    0xb8 shl 0xf8 shr           // [burners_len]
+//     // getting burners length
+//     0xb8 shl 0xf8 shr           // [burners_len]
 
-    BURN_CONTRACTS(0x6c)
+//     BURN_CONTRACTS(0x6c)
 
-    regular_2swaps2_diff:
-        // getting burners length
-        0x8c calldataload   // [calldata[140:172], calldata[96:128]]
-        0xf8 shr            // [burners_len, calldata[96:128]]
+//     regular_2swaps2_diff:
+//         // getting burners length
+//         0x8c calldataload   // [calldata[140:172], calldata[96:128]]
+//         0xf8 shr            // [burners_len, calldata[96:128]]
 
-        BURN_CONTRACTS(0x81)
+//         BURN_CONTRACTS(0x81)
 
-    // BURN CONTRACTS IF FORKING
-}
+//     // BURN CONTRACTS IF FORKING
+// }
 
 #define macro FLASH_2SWAPS0() = takes (10) returns (0) {
     // takes [token_in0, calldata[96:128], pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, is0_in1]
@@ -308,7 +312,7 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     // getting burners length
     swap1 0xb8 shl 0xf8 shr  // [burners_len, pair0, amount_out0, is0_in0]
 
-    FLASH_2SWAPS1(0x0112, 0x6c)
+    FLASH_2SWAPS1(0x0112)
 
     flash_2swaps_diff:
         // 260-292 (32 bytes)
@@ -330,10 +334,10 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
         // getting burners length
         0x60 shl 0xf8 shr  // [burners_len, pair0, amount_out0, is0_in0]
 
-        FLASH_2SWAPS1(0x0126, 0x81)
+        FLASH_2SWAPS1(0x0126)
 }
 
-#define macro FLASH_2SWAPS1(args_len, first_burner_loc) = takes (4) returns (0) {
+#define macro FLASH_2SWAPS1(args_len) = takes (4) returns (0) {
     // execute flash swap
     // takes: [burners_len, pair0, amount_out0, is0_in0]
 
@@ -362,7 +366,8 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     call iszero       // [success==0, burners_len]
     fail jumpi        // [burners_len]
 
-    BURN_CONTRACTS(<first_burner_loc>)
+    // BURN_CONTRACTS(<first_burner_loc>)
+    stop  // no burning
 
     flash_2swaps1_is0_in0:
         // TOKEN1 IS TOKEN_OUT
@@ -375,7 +380,8 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
         call iszero       // [success==0, burners_len]
         fail jumpi        // [burners_len]
 
-        BURN_CONTRACTS(<first_burner_loc>)
+        // BURN_CONTRACTS(<first_burner_loc>)
+        stop  // no burning
 }
 
 #define macro ARB3_SWAPS0() = takes (10) returns (0) {
@@ -441,8 +447,10 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     REGULAR_3SWAPS0()
 
     no_profit3:
-        swap10          // [sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
-        NO_PROFIT()
+        // swap10          // [sel, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, amount_out2, calldata[96:128]]
+        // NO_PROFIT()
+        0x01 callvalue     // [offset, size, amount_out2, is0_in2, pair2, is0_in1, pair1, amount_out0, is0_in0, amount_in0, pair0, amount_out1, sel, calldata[96:128]]
+        return             // return 1st byte to indicate no profit
 
     flash_3swaps:
         FLASH_3SWAPS0()
@@ -582,30 +590,31 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
         // executing 3rd swap
         swap1 SWAP()           // [sel, calldata[96:128]]
 
-        REGULAR_3SWAPS3()
+        // REGULAR_3SWAPS3()
+        stop  // no burning
 }
 
-#define macro REGULAR_3SWAPS3() = takes (1) returns (0) {
-    // get burners length and burn contracts
-    // takes: [sel]
+// #define macro REGULAR_3SWAPS3() = takes (1) returns (0) {
+//     // get burners length and burn contracts
+//     // takes: [sel]
 
-    // checking if token out is same as token in
-    0x04 eq                     // [diff==sel]
-    regular_3swaps3_diff jumpi  // []
+//     // checking if token out is same as token in
+//     0x04 eq                     // [diff==sel]
+//     regular_3swaps3_diff jumpi  // []
 
-    // getting burners length
-    0x8f calldataload           // [calldata[143:175]]
-    0xf8 shr                    // [burners_len]
+//     // getting burners length
+//     0x8f calldataload           // [calldata[143:175]]
+//     0xf8 shr                    // [burners_len]
 
-    BURN_CONTRACTS(0x84)
+//     BURN_CONTRACTS(0x84)
 
-    regular_3swaps3_diff:
-        // getting burners length
-        0xa4 calldataload       // [calldata[164:196]]
-        0xf8 shr                // [burners_len]
+//     regular_3swaps3_diff:
+//         // getting burners length
+//         0xa4 calldataload       // [calldata[164:196]]
+//         0xf8 shr                // [burners_len]
 
-        BURN_CONTRACTS(0x99)
-}
+//         BURN_CONTRACTS(0x99)
+// }
 
 #define macro FLASH_3SWAPS0() = takes(13) returns (0) {
     // crete arguments for flash swap
@@ -671,7 +680,7 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     swap2                     // [calldata[128:160], amount_out0, pair0, is0_in0]
     0x78 shl 0xf8 shr         // [burners_len, amount_out0, pair0, is0_in0]
 
-    FLASH_3SWAPS1(0x0135, 0x84)
+    FLASH_3SWAPS1(0x0135)
 
 
     flash_3swaps0_diff:
@@ -695,10 +704,10 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
         // getting burners length
         0x20 shl 0xf8 shr  // [burners_len, amount_out0, pair0, is0_in0]
 
-        FLASH_3SWAPS1(0x0149, 0x99)
+        FLASH_3SWAPS1(0x0149)
 }
 
-#define macro FLASH_3SWAPS1(args_len, first_burner_loc) = takes (4) returns (0) {
+#define macro FLASH_3SWAPS1(args_len) = takes (4) returns (0) {
     // execute flash swap
     // takes: [burners_len, amount_out0, pair0, is0_in0]
 
@@ -726,7 +735,8 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     call iszero            // [success==0, burners_len]
     fail jumpi             // [burners_len]
 
-    BURN_CONTRACTS(<first_burner_loc>)
+    // BURN_CONTRACTS(<first_burner_loc>)
+    stop  // no burning
 
     flash_3swaps1_is0_in0:
         // TOKEN1 IS TOKEN_OUT
@@ -739,7 +749,8 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
         call iszero            // [success==0, burners_len]
         fail jumpi             // [burners_len]
 
-        BURN_CONTRACTS(<first_burner_loc>)
+        // BURN_CONTRACTS(<first_burner_loc>)
+        stop  // no burning
 }
 
 #define macro ARB_CALLBACK() = takes (0) returns (0) {
@@ -981,80 +992,80 @@ When clearing 2 halves, shift 1st half additional 7 bits left, and 2nd half addi
     swap1                         // [amount_in, token_in]
 }
 
-#define macro NO_PROFIT() = takes (1) returns (0) {
-    // burn 1 burner and stop execution
-    // takes [sel]
-    dup1 0x03 eq           // [sel==0x03, sel]
-    swap3_same_stop jumpi  // [sel]
+// #define macro NO_PROFIT() = takes (1) returns (0) {
+//     // burn 1 burner and stop execution
+//     // takes [sel]
+//     dup1 0x03 eq           // [sel==0x03, sel]
+//     swap3_same_stop jumpi  // [sel]
 
-    dup1 0x01 eq           // [sel==0x01, sel]
-    swap2_same_stop jumpi  // [sel]
+//     dup1 0x01 eq           // [sel==0x01, sel]
+//     swap2_same_stop jumpi  // [sel]
 
-    dup1 0x04 eq           // [sel==0x04, sel]
-    swap3_diff_stop jumpi  // [sel]
+//     dup1 0x04 eq           // [sel==0x04, sel]
+//     swap3_diff_stop jumpi  // [sel]
 
-    BURN_AND_STOP(0x81)
+//     BURN_AND_STOP(0x81)
 
-    swap3_same_stop:
-        BURN_AND_STOP(0x84)
-    swap2_same_stop:
-        BURN_AND_STOP(0x6c)
-    swap3_diff_stop:
-        BURN_AND_STOP(0x99)
-}
+//     swap3_same_stop:
+//         BURN_AND_STOP(0x84)
+//     swap2_same_stop:
+//         BURN_AND_STOP(0x6c)
+//     swap3_diff_stop:
+//         BURN_AND_STOP(0x99)
+// }
 
-#define macro BURN_CONTRACTS(first_burner_loc) = takes (1) returns (4) {
-    // burn contracts and stop
-    // takes: [burners_len]
+// #define macro BURN_CONTRACTS(first_burner_loc) = takes (1) returns (4) {
+//     // burn contracts and stop
+//     // takes: [burners_len]
 
-    // arranging stack for burn_loop
-    0x14 0x01 swap2     // [burners_len, 20, 1]
-    <first_burner_loc>  // [burner_load, burners_len, 20, 1]
+//     // arranging stack for burn_loop
+//     0x14 0x01 swap2     // [burners_len, 20, 1]
+//     <first_burner_loc>  // [burner_load, burners_len, 20, 1]
 
-    burn_loop:
-        // burning contract
-        BURNER_ARGS()      // [value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
-        dup6 calldataload  // [address, value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
-        gas                // [gas, address, value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
-        call pop           // [burner_load, burners_len, 20, 1]
+//     burn_loop:
+//         // burning contract
+//         BURNER_ARGS()      // [value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
+//         dup6 calldataload  // [address, value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
+//         gas                // [gas, address, value, args_offset, args_size, ret_offset, ret_size, burner_load, burners_len, 20, 1]
+//         call pop           // [burner_load, burners_len, 20, 1]
 
-        // decrementing counter
-        dup4 swap1 swap2   // [burners_len, 1, burner_load, 20, 1]
-        sub                // [burners_len, burner_load, 20, 1]
+//         // decrementing counter
+//         dup4 swap1 swap2   // [burners_len, 1, burner_load, 20, 1]
+//         sub                // [burners_len, burner_load, 20, 1]
 
-        // checking for end
-        dup1 iszero        // [burners_len==0, burners_len, burner_load, 20, 1]
-        end_burn jumpi     // [burners_len, burner_load, 20, 1]
+//         // checking for end
+//         dup1 iszero        // [burners_len==0, burners_len, burner_load, 20, 1]
+//         end_burn jumpi     // [burners_len, burner_load, 20, 1]
 
-        // incrementing burner_load by 20
-        swap1 dup3         // [20, burner_load, burners_len, 20, 1]
-        add                // [burner_load, burners_len, 20, 1]
+//         // incrementing burner_load by 20
+//         swap1 dup3         // [20, burner_load, burners_len, 20, 1]
+//         add                // [burner_load, burners_len, 20, 1]
 
-        burn_loop jump     // [burner_load, burners_len, 20, 1]
+//         burn_loop jump     // [burner_load, burners_len, 20, 1]
 
-    end_burn:
-        stop
-}   
+//     end_burn:
+//         stop
+// }   
 
-#define macro BURN_AND_STOP(burner) = takes (0) returns (1) {
-    // load burner at calldata(burner), burn it and stop
-    BURNER_ARGS()          // [value, args_offset, args_size, ret_offset, ret_size]
-    <burner> calldataload  // [address, args_offset, args_size, ret_offset, ret_size]
-    gas                    // [gas, address, args_offset, args_size, ret_offset, ret_size]
-    call                   // [success]
-    0x01                   // [size, success]
-    callvalue              // [offset, size, success]
-    return
-}
+// #define macro BURN_AND_STOP(burner) = takes (0) returns (1) {
+//     // load burner at calldata(burner), burn it and stop
+//     BURNER_ARGS()          // [value, args_offset, args_size, ret_offset, ret_size]
+//     <burner> calldataload  // [address, args_offset, args_size, ret_offset, ret_size]
+//     gas                    // [gas, address, args_offset, args_size, ret_offset, ret_size]
+//     call                   // [success]
+//     0x01                   // [size, success]
+//     callvalue              // [offset, size, success]
+//     return
+// }
 
-#define macro BURNER_ARGS() = takes (0) returns (5) {
-    // add burn arguments that come before address
-    callvalue  // [ret_size]
-    callvalue  // [ret_offset, ret_size]
-    callvalue  // [args_size, ret_offset, ret_size]
-    callvalue  // [args_offset, args_size, ret_offset, ret_size]
-    callvalue  // [value, args_offset, args_size, ret_offset, ret_size]
-}
+// #define macro BURNER_ARGS() = takes (0) returns (5) {
+//     // add burn arguments that come before address
+//     callvalue  // [ret_size]
+//     callvalue  // [ret_offset, ret_size]
+//     callvalue  // [args_size, ret_offset, ret_size]
+//     callvalue  // [args_offset, args_size, ret_offset, ret_size]
+//     callvalue  // [value, args_offset, args_size, ret_offset, ret_size]
+// }
 
 #define macro LOAD0_96() = takes (0) returns (3) {
     // load first 96 bytes from calldata
