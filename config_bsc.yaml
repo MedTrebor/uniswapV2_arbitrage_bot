@@ -55,7 +55,7 @@ restart:
   cooldown: 600
 
 burner:
-  enabled: True
+  enabled: False
   factory: "0x6Ad9A356EE572ca0e083a35aF9fb0069C33B7fEb"
   min: 20
   gas_price: 1000000001

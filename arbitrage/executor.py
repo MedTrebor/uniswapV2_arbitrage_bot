@@ -24,13 +24,12 @@ def exe_arbs(
     potential_arbs: list[tuple[Arbitrage, Decimal, Decimal]],
     gas_params: GasParams,
     pools: Pools,
-    burners: list[BurnersData],
     block_time: BlockTime,
 ) -> tuple[list[TxReceipt], list[Arbitrage], list[ArbArgs]]:
     w3 = Web3()
 
     # formatting transaction parameters
-    transactions = format_transactions(w3, potential_arbs, pools, gas_params, burners)
+    transactions = format_transactions(w3, potential_arbs, pools, gas_params)
 
     # executing transactions
     tx_hashes, arbs, arb_args = execute_transactions(
@@ -57,15 +56,12 @@ def format_transactions(
     arbs_with_gas: list[tuple[Arbitrage, Decimal, Decimal]],
     pools: Pools,
     gas_params: GasParams,
-    burners: list[BurnersData],
 ) -> list[TxParams]:
     account = w3.account
-    burners = deepcopy(burners)
 
     transactions = []
     for arb, gas_usage, gas_price in arbs_with_gas:
-        burner_addresses = get_burner_addresses(burners, arb.burners_count)
-        arb_args = create_arb_args(arb, pools, burner_addresses)
+        arb_args = create_arb_args(arb, pools)
         tx_params = create_tx_params(w3, arb_args, gas_params, gas_price, gas_usage)
 
         transactions.append(tx_params)

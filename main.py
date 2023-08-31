@@ -50,7 +50,6 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
             last_block,
             blacklist_paths,
             pre_blacklist_paths,
-            burners,
         ) = loader.load_data()
 
         # NOT WORKING
@@ -255,30 +254,11 @@ def main(process_mngr: SyncManager, process_pool: ProcessPool):
                         potential_arbs,
                         price.gas_params,
                         pools,
-                        burners,
                         block_time,
                     )
 
                     if tx_receipts:
-                        # removing used burners
-                        used_burners = []
-                        for receipt, arb_arg in zip(tx_receipts, arb_args, strict=True):
-                            used_burners.extend(
-                                blockchain.get_used_burnerns(receipt, arb_arg)
-                            )
-                            log.info(
-                                f"Last block: {last_block:,}, Execution block: {receipt['blockNumber']:,}"
-                            )
-                        log.info(f"Used burners:\n{used_burners}")
-                        blockchain.remove_used_burners(burners, used_burners)
-                        persistance.save_burners(burners)
-
-                        logger.log_executed_arbs(
-                            tx_receipts, arbs, arb_args, used_burners
-                        )
-
-                        # blockchain.create_burners(burners, w3.account)
-                        # persistance.save_burners(burners)
+                        logger.log_executed_arbs(tx_receipts, arbs, arb_args)
 
                 log.debug(
                     "Finished checking potential arbitrages in "

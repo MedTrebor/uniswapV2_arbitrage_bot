@@ -28,13 +28,10 @@ SYMBOLS = {
 
 
 def log_executed_arbs(
-    tx_receipts: list[TxReceipt],
-    arbs: list[Arbitrage],
-    arb_args: list[ArbArgs],
-    used_burners: list[ChecksumAddress],
+    tx_receipts: list[TxReceipt], arbs: list[Arbitrage], arb_args: list[ArbArgs]
 ):
     for receipt, arb, args in zip(tx_receipts, arbs, arb_args, strict=True):
-        status, style = get_tx_status(receipt["status"], args["burners"], used_burners)
+        status, style = get_tx_status(receipt["status"], receipt)
         tx_hash = receipt["transactionHash"].hex()
         url = "https://bscscan.com/tx/" + tx_hash
 
@@ -46,23 +43,15 @@ def log_executed_arbs(
         _log(log_str)
 
 
-def get_tx_status(
-    status: bool,
-    arg_burners: list[ChecksumAddress],
-    used_burners: list[ChecksumAddress],
-) -> tuple[str, str]:
+def get_tx_status(status: bool, tx_receipt: TxReceipt) -> tuple[str, str]:
     if not status:
         return "revert", "[b u i red]"
 
-    for address in arg_burners:
-        if address not in used_burners:
-            status = False
-            break
+    if tx_receipt["gasUsed"] < 100_000:
+        return "no profit", "[b u i yellow]"
 
     if status:
         return "success", "[b u i green]"
-
-    return "no profit", "[b u i yellow]"
 
 
 def get_tx_log(
@@ -72,7 +61,6 @@ def get_tx_log(
     arb_args: ArbArgs,
 ) -> str:
     noprofit_paths = persistance.load_noprofit_paths()
-    burn_cost = Decimal(36_930) * Decimal(CONFIG["burner"]["gas_price"])
     gas_price = Decimal(tx_receipt["effectiveGasPrice"])
     gas_used = Decimal(tx_receipt["gasUsed"])
 
@@ -84,8 +72,6 @@ def get_tx_log(
     if status == "revert" or status == "no profit":
         # getting and saving loss
         loss = gas_price * gas_used
-        if status == "no profit":
-            loss += burn_cost
         save_tx_stats(False, -loss, Decimal(0))
 
         # updating nonprofitable paths
@@ -129,16 +115,14 @@ def get_tx_log(
     gas_cost = calc_gas_cost(gas_price, gas_used, wei_price)
 
     bruto_profit = amount_out - amount_in
-    wei_burners_cost = burn_cost * arb_args["burners_len"]
-    burners_cost = round(wei_burners_cost * wei_price, 0)
-    neto_profit = bruto_profit - gas_cost - burners_cost
+    neto_profit = bruto_profit - gas_cost
 
     # saving transaction stats
     if token_in in CONFIG["weths"]:
         bnb_profit = neto_profit
         usd_profit = Decimal(0)
     else:
-        bnb_profit = -(gas_price * gas_used + wei_burners_cost)
+        bnb_profit = -(gas_price * gas_used)
         usd_profit = bruto_profit
     save_tx_stats(True, bnb_profit, usd_profit)
 
@@ -176,8 +160,6 @@ def get_tx_log(
     log_str += f"[b]GAS PRICE[/]: [yellow]{str_gas_price}[/] GWEI\n"
     log_str += f"[b]GAS USED[/]: [orange1]{str_gas_used}[/]\n"
     log_str += f"[b]GAS COST[/]: [not b red]{str_gas_cost}[/] {str_symbol_out}\n"
-    if arb_args["burners_len"]:
-        log_str += f"[b]BURNERS BURNED[/]: {arb_args['burners_len']}\n"
     log_str += f"[b]NETO PROFIT[/]: [green]{str_neto_profit}[/] {str_symbol_out}"
 
     return log_str

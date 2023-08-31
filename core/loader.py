@@ -5,20 +5,13 @@ import blockchain
 import path
 import persistance
 from utils import CONFIG, Logger, measure_time
-from utils._types import BurnersData, Pools
+from utils._types import Pools
 
 log = Logger(__name__)
 
 
 def load_data() -> (
-    tuple[
-        Pools,
-        dict[str, int],
-        int,
-        set[tuple[str, ...]],
-        dict[tuple[str, ...], int],
-        list[BurnersData],
-    ]
+    tuple[Pools, dict[str, int], int, set[tuple[str, ...]], dict[tuple[str, ...], int]]
 ):
     """Load data from storage or download if storage is empty.
 
@@ -26,10 +19,10 @@ def load_data() -> (
         tuple[
             Pools, dict[str, int], int, dict[str, list[int]],
             list[list[str]], set[tuple[str, ...]], dict[tuple[str, ...],
-            int], list[BurnersData]
+            int]
         ]: Pools, pool numbers, last block info, pool to path index mapping,
             paths, blacklisted paths, pre blacklisted paths (path to revert
-            message to revert count mapping), burners.
+            message to revert count mapping).
     """
     # loading data from storage
     pools = persistance.load_pools()
@@ -37,7 +30,6 @@ def load_data() -> (
     blacklist_paths = persistance.load_blacklist_paths()
     pre_blacklist_paths = persistance.load_pre_blacklist_paths()
     last_block_number = persistance.get_last_block()
-    burners = persistance.load_burners()
 
     update_all_pools = False
 
@@ -64,7 +56,6 @@ def load_data() -> (
         last_block_number,
         blacklist_paths,
         pre_blacklist_paths,
-        burners,
     )
 
 
